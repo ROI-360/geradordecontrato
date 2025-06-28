@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contrato Interativo – Studio D & Matheus Laurindo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- Chosen Palette: Warm Neutral & Soft Teal -->
+    <!-- Application Structure Plan: A tabbed-dashboard interface was chosen to deconstruct the dense legal contract into logical, user-friendly sections. This structure abandons the linear format of the original document in favor of a task-oriented approach. Users can immediately access key sections like "Financeiro" or "Obrigações" without scrolling. This improves usability by allowing parties to quickly find specific information and understand the core components of the agreement at a glance. New client input and signature features are integrated into the 'Partes' and 'Assinaturas' tabs, respectively, to maintain a cohesive flow. An 'Admin Settings' tab is added for dynamic content modification, enhancing the contract's adaptability for various niches. -->
+    <!-- Visualization & Content Choices: 
+        - Report Info: Parties' details -> Goal: Inform/Input -> Viz/Presentation: Styled cards with icons, now with an expandable form -> Interaction: Static display + form input, save/load from localStorage -> Justification: Clear identification, now with user input for personalization and persistence. -> Library/Method: HTML/Tailwind, Vanilla JS.
+        - Report Info: Contract clauses -> Goal: Organize -> Viz/Presentation: Tabbed interface -> Interaction: Click to switch views -> Justification: Breaks down complex information into manageable chunks, improving navigation and comprehension. -> Library/Method: Vanilla JS.
+        - Report Info: Pricing tiers -> Goal: Compare/Inform -> Viz/Presentation: Dynamically highlighted price boxes -> Interaction: Automatic highlighting based on current date (or admin override) -> Justification: Provides instant clarity on the applicable fee, making the document feel "live" and context-aware. Admin control adds flexibility. -> Library/Method: Vanilla JS.
+        - Report Info: Contract term (6 months) -> Goal: Inform/Change -> Viz/Presentation: Horizontal Bar Chart -> Interaction: Static visualization -> Justification: Offers a simple, intuitive visual representation of the contract's duration. -> Library/Method: Chart.js/Canvas.
+        - Report Info: Obligations -> Goal: Compare -> Viz/Presentation: Two-column layout -> Interaction: Static display -> Justification: Simplifies comparison of responsibilities between parties. -> Library/Method: HTML/Tailwind.
+        - Report Info: Client Signature -> Goal: Record/Formalize -> Viz/Presentation: Interactive canvas for drawing, image display -> Interaction: Draw, clear, save, load from localStorage -> Justification: Allows digital capture of signature for contract formalization, even if not legally binding in all jurisdictions. -> Library/Method: HTML Canvas, Vanilla JS.
+        - Report Info: Full Contract -> Goal: Export -> Viz/Presentation: PDF document -> Interaction: Button click to generate PDF -> Justification: Provides a tangible, shareable, and printable version of the completed contract. -> Library/Method: jsPDF, html2canvas.
+        - Report Info: Niche/Service Description -> Goal: Customize -> Viz/Presentation: Admin-only input fields -> Interaction: Text input, save/load from localStorage -> Justification: Enables quick adaptation of contract specifics for different client needs. -> Library/Method: HTML/Tailwind, Vanilla JS.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .tab-button.active {
+            border-color: #14b8a6;
+            color: #14b8a6;
+            background-color: #f0fdfa;
+        }
+        .tab-button {
+            transition: all 0.2s ease-in-out;
+        }
+        .price-box.active {
+            border-color: #14b8a6;
+            background-color: #f0fdfa;
+            transform: scale(1.02);
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        .price-box {
+            transition: all 0.3s ease-in-out;
+        }
+        .price-box.inactive {
+            filter: grayscale(80%);
+            opacity: 0.7;
+        }
+        .chart-container {
+            position: relative;
+            height: 120px;
+            max-height: 120px;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .signature-canvas {
+            border: 1px solid #e2e8f0;
+            background-color: #ffffff;
+            cursor: crosshair;
+            touch-action: none; /* Prevents scrolling on touch devices while drawing */
+        }
+        .input-group {
+            margin-bottom: 1rem;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #334155;
+        }
+        .input-group input, .input-group textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 0.375rem;
+            font-size: 1rem;
+            color: #1e293b;
+            background-color: #f8fafc;
+        }
+        .form-section.hidden, .admin-section.hidden {
+            display: none;
+        }
+    </style>
+    <link rel="preconnect" href="https://rsms.me/">
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+    <div class="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8">
+        
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-teal-600">Contrato de Gestão de Tráfego Pago</h1>
+            <p class="text-slate-500 mt-2">Studio D & Matheus Henrique Laurindo</p>
+        </header>
+
+        <div class="bg-white rounded-lg shadow-lg p-4 sm:p-6">
+            <nav class="flex flex-wrap border-b border-slate-200 mb-6">
+                <button data-tab="overview" class="tab-button active text-sm sm:text-base font-medium py-3 px-3 sm:px-5 border-b-2 border-transparent hover:border-teal-500 hover:text-teal-500">Visão Geral</button>
+                <button data-tab="parties" class="tab-button text-sm sm:text-base font-medium py-3 px-3 sm:px-5 border-b-2 border-transparent hover:border-teal-500 hover:text-teal-500">Partes</button>
+                <button data-tab="services" class="tab-button text-sm sm:text-base font-medium py-3 px-3 sm:px-5 border-b-2 border-transparent hover:border-teal-500 hover:text-teal-500">Serviços</button>
+                <button data-tab="financial" class="tab-button text-sm sm:text-base font-medium py-3 px-3 sm:px-5 border-b-2 border-transparent hover:border-teal-500 hover:text-teal-500">Financeiro</button>
+                <button data-tab="term" class="tab-button text-sm sm:text-base font-medium py-3 px-3 sm:px-5 border-b-2 border-transparent hover:border-teal-500 hover:text-teal-500">Prazo e Rescisão</button>
+                <button data-tab="obligations" class="tab-button text-sm sm:text-base font-medium py-3 px-3 sm:px-5 border-b-2 border-transparent hover:border-teal-500 hover:text-teal-500">Obrigações</button>
+                <button data-tab="confidentiality" class="tab-button text-sm sm:text-base font-medium py-3 px-3 sm:px-5 border-b-2 border-transparent hover:border-teal-500 hover:text-teal-500">Confidencialidade</button>
+                <button data-tab="signatures" class="tab-button text-sm sm:text-base font-medium py-3 px-3 sm:px-5 border-b-2 border-transparent hover:border-teal-500 hover:text-teal-500">Assinaturas</button>
+                <button data-tab="admin-settings" class="tab-button text-sm sm:text-base font-medium py-3 px-3 sm:px-5 border-b-2 border-transparent hover:border-teal-500 hover:text-teal-500">Configurações do Admin</button>
+            </nav>
+
+            <main>
+                <!-- Visão Geral -->
+                <section id="overview" class="tab-content">
+                    <div class="prose max-w-none">
+                        <p class="text-slate-600 mb-6">Esta é uma visão geral dos termos mais importantes do contrato. Para detalhes completos, navegue pelas abas acima. Este painel interativo resume o acordo legal para facilitar a consulta e o entendimento mútuo.</p>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div class="bg-slate-100 p-6 rounded-lg">
+                            <h3 class="font-bold text-lg mb-2 text-teal-700">Objeto Principal</h3>
+                            <p id="overview-main-objective" class="text-slate-600">Gestão de Tráfego Pago (Facebook/Instagram Ads) para aumentar a visualização do perfil e gerar leads via WhatsApp.</p>
+                        </div>
+                        <div class="bg-slate-100 p-6 rounded-lg">
+                            <h3 class="font-bold text-lg mb-2 text-teal-700">Valor Mensal (Atual)</h3>
+                            <p id="overview-price" class="text-slate-600 text-2xl font-bold">--</p>
+                            <p class="text-sm text-slate-500">Valor atual baseado na data de assinatura.</p>
+                        </div>
+                        <div class="bg-slate-100 p-6 rounded-lg">
+                            <h3 class="font-bold text-lg mb-2 text-teal-700">Prazo do Contrato</h3>
+                            <p class="text-slate-600 text-2xl font-bold">6 meses</p>
+                            <p class="text-sm text-slate-500">Com renovação automática via Cartão de Crédito.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Partes -->
+                <section id="parties" class="tab-content hidden">
+                    <div class="prose max-w-none">
+                        <p class="text-slate-600 mb-6">As partes envolvidas neste contrato são o CONTRATANTE, o cliente que recebe os serviços, e o CONTRATADO, o profissional responsável pela execução. As informações de contato e identificação são fundamentais para a comunicação oficial entre ambos. Use o formulário abaixo para preencher os dados do CONTRATANTE.</p>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="border border-slate-200 rounded-lg p-6">
+                            <h3 class="font-bold text-xl mb-4 text-teal-700">CONTRATANTE</h3>
+                            <div id="contratante-display">
+                                <p><strong>Razão Social:</strong> <span id="display-nome-completo">Deybson Robson Ortelhado</span></p>
+                                <p><strong>Nome Fantasia:</strong> <span id="display-nome-fantasia">Studio D</span></p>
+                                <p><strong>CNPJ:</strong> <span id="display-cnpj">33.998.489/0001-91</span></p>
+                                <p><strong>Endereço:</strong> <span id="display-endereco">[Preencher Endereço Completo do Studio D, incluindo número, bairro, cidade, estado]</span> - Várzea Grande, Mato Grosso, CEP 78110-000</p>
+                                <p><strong>Telefone:</strong> <span id="display-telefone">(65) 99277-2500</span></p>
+                                <p><strong>E-mail:</strong> <span id="display-email">pilltwiggue@gmail.com</span></p>
+                                <button id="edit-contratante-btn" class="mt-4 px-4 py-2 bg-teal-500 text-white rounded-md hover:bg-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-opacity-50">Editar Dados do Contratante</button>
+                            </div>
+
+                            <div id="contratante-form" class="form-section hidden mt-4 p-4 border border-slate-300 rounded-lg bg-slate-50">
+                                <h4 class="font-bold text-lg mb-4 text-teal-700">Preencher Dados do Contratante</h4>
+                                <div class="input-group">
+                                    <label for="input-nome-completo">Nome Completo/Razão Social:</label>
+                                    <input type="text" id="input-nome-completo" placeholder="Nome Completo/Razão Social">
+                                </div>
+                                <div class="input-group">
+                                    <label for="input-nome-fantasia">Nome Fantasia:</label>
+                                    <input type="text" id="input-nome-fantasia" placeholder="Nome Fantasia">
+                                </div>
+                                <div class="input-group">
+                                    <label for="input-cnpj">CNPJ:</label>
+                                    <input type="text" id="input-cnpj" placeholder="CNPJ">
+                                </div>
+                                <div class="input-group">
+                                    <label for="input-endereco">Endereço:</label>
+                                    <input type="text" id="input-endereco" placeholder="Endereço Completo">
+                                </div>
+                                <div class="input-group">
+                                    <label for="input-telefone">Telefone:</label>
+                                    <input type="text" id="input-telefone" placeholder="Telefone">
+                                </div>
+                                <div class="input-group">
+                                    <label for="input-email">E-mail:</label>
+                                    <input type="email" id="input-email" placeholder="E-mail">
+                                </div>
+                                <button id="save-contratante-btn" class="mt-4 px-4 py-2 bg-teal-500 text-white rounded-md hover:bg-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-opacity-50">Salvar Dados</button>
+                                <button id="cancel-edit-btn" class="mt-4 ml-2 px-4 py-2 bg-slate-300 text-slate-800 rounded-md hover:bg-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-opacity-50">Cancelar</button>
+                            </div>
+                        </div>
+                        <div class="border border-slate-200 rounded-lg p-6">
+                            <h3 class="font-bold text-xl mb-4 text-teal-700">CONTRATADO</h3>
+                            <p><strong>Nome Completo:</strong> Matheus Henrique Laurindo</p>
+                            <p><strong>CPF:</strong> 100.936.909-16</p>
+                            <p><strong>Endereço:</strong> Rua Aquidabã, 199, Escola Agrícola, Blumenau, SC, 89037-740</p>
+                            <p><strong>Telefone:</strong> (47) 99217-6490</p>
+                            <p><strong>E-mail:</strong> laurindomatheus40@gmail.com</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Serviços -->
+                <section id="services" class="tab-content hidden prose max-w-none">
+                     <p class="text-slate-600 mb-6">Esta seção detalha o escopo dos serviços a serem prestados. Define claramente o que está incluído no objeto do contrato, como a gestão das campanhas, e o que não está, como a otimização de landing pages, que pode ser contratada separadamente.</p>
+                    <h2 class="text-teal-700">CLÁUSULA PRIMEIRA – DO OBJETO DO CONTRATO</h2>
+                    <p id="clausula1-1-main" class="text-slate-800">1.1. O presente Contrato tem como objeto a prestação de serviços de Gestão de Tráfego Pago pelo CONTRATADO para o CONTRATANTE, visando a otimização de campanhas publicitárias online nas plataformas Facebook/Instagram Ads, com os seguintes objetivos principais:</p>
+                    <ul>
+                        <li id="clausula1-1-a" class="text-slate-800">a) Aumento da visualização do perfil do Studio D no Instagram;</li>
+                        <li id="clausula1-1-b" class="text-slate-800">b) Geração de Leads via WhatsApp para agendamento de serviços de salão de beleza e harmonização facial.</li>
+                    </ul>
+                    <p class="text-slate-800">1.2. A gestão do tráfego pago incluirá a criação, configuração, monitoramento e otimização das campanhas nas plataformas mencionadas.</p>
+                    <p class="text-slate-800">1.3. A criação de criativos (vídeos e outras peças) será realizada com colaboração mútua. A criação exclusiva de vídeos pelo CONTRATADO será mediante acordo prévio.</p>
+                    <p class="text-slate-800">1.4. A otimização de páginas de destino (landing pages) <strong>NÃO está inclusa</strong> e será cobrada à parte, caso solicitada.</p>
+                </section>
+
+                <!-- Financeiro -->
+                <section id="financial" class="tab-content hidden">
+                    <div class="prose max-w-none">
+                        <p class="text-slate-600 mb-6">Aqui estão definidos todos os aspectos financeiros do acordo. O sistema abaixo destaca dinamicamente o valor mensal aplicável com base na data atual, de acordo com os termos do contrato. Também esclarece a responsabilidade sobre o investimento em anúncios.</p>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div id="price-1500" class="price-box border-2 border-slate-200 rounded-lg p-6 text-center">
+                            <p class="text-sm text-slate-500">Se assinado até 30/06/2025</p>
+                            <p class="text-4xl font-bold my-2"><span id="display-price-1500">R$ 1.500,00</span></p>
+                            <p class="text-slate-600">por mês</p>
+                        </div>
+                        <div id="price-1900" class="price-box border-2 border-slate-200 rounded-lg p-6 text-center">
+                            <p class="text-sm text-slate-500">Se assinado após 30/06/2025</p>
+                            <p class="text-4xl font-bold my-2"><span id="display-price-1900">R$ 1.900,00</span></p>
+                            <p class="text-slate-600">por mês</p>
+                        </div>
+                    </div>
+                    <div class="prose max-w-none">
+                      <p>2.2. Os pagamentos serão realizados mensalmente, com vencimento no mesmo dia de cada mês correspondente à data de assinatura.</p>
+                      <p>2.3. Pagamentos via cartão de crédito podem ser feitos pelo link: <a href="https://www.asaas.com/c/922ne9tix6v8zm6c" target="_blank" class="text-teal-600 hover:underline">Link de Pagamento Asaas</a>.</p>
+                      <p>2.4. Não haverá cobrança de taxa de setup ou ativação.</p>
+                      <p>2.5. O <strong>CONTRATANTE é o único responsável pelo investimento em mídia paga</strong> (verba de anúncios), definindo o valor a ser investido.</p>
+                    </div>
+                </section>
+
+                <!-- Prazo e Rescisão -->
+                <section id="term" class="tab-content hidden">
+                    <div class="prose max-w-none">
+                        <p class="text-slate-600 mb-6">Esta seção governa a duração do contrato, as regras para sua renovação e as condições para rescisão. O gráfico abaixo ilustra a duração inicial do contrato, enquanto as cláusulas detalham as multas e procedimentos em caso de término antecipado.</p>
+                    </div>
+                    <div class="my-6">
+                         <h3 class="font-bold text-lg mb-2 text-center text-teal-700">Duração Inicial do Contrato</h3>
+                         <div class="chart-container">
+                             <canvas id="termChart"></canvas>
+                         </div>
+                    </div>
+                    <div class="prose max-w-none">
+                        <h3 class="text-teal-700">Prazo e Renovação</h3>
+                        <p>3.1. O Contrato tem prazo determinado de 6 (seis) meses.</p>
+                        <p>3.2. A renovação é automática por iguais períodos se o pagamento for via Cartão de Crédito.</p>
+                        <p>3.3. Pagamentos via PIX não geram renovação automática.</p>
+                        <h3 class="text-teal-700 mt-4">Rescisão e Multas</h3>
+                        <p>4.1. Rescisão imotivada pode ocorrer por qualquer parte com aviso prévio de 7 dias.</p>
+                        <p>4.2. Em caso de rescisão antecipada pelo CONTRATANTE (antes dos 6 meses), haverá multa de <strong>2% do valor total restante</strong> do contrato.</p>
+                        <p>4.3. Rescisão por justa causa (descumprimento grave) é imediata.</p>
+                    </div>
+                </section>
+
+                <!-- Obrigações -->
+                <section id="obligations" class="tab-content hidden">
+                     <div class="prose max-w-none">
+                        <p class="text-slate-600 mb-6">O sucesso da parceria depende do cumprimento das responsabilidades de cada parte. A seguir, as obrigações do CONTRATADO e do CONTRATANTE são apresentadas lado a lado para maior clareza e fácil consulta.</p>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="border border-slate-200 rounded-lg p-6">
+                            <h3 class="font-bold text-xl mb-4 text-teal-700">Obrigações do CONTRATADO</h3>
+                            <ul class="list-disc list-inside space-y-2">
+                                <li>Criar, configurar e gerenciar as campanhas.</li>
+                                <li>Realizar acompanhamento diário e otimização.</li>
+                                <li>Apresentar relatórios de desempenho.</li>
+                                <li>Manter sigilo sobre informações confidenciais.</li>
+                            </ul>
+                        </div>
+                        <div class="border border-slate-200 rounded-lg p-6">
+                            <h3 class="font-bold text-xl mb-4 text-teal-700">Obrigações do CONTRATANTE</h3>
+                            <ul class="list-disc list-inside space-y-2">
+                                <li>Efetuar os pagamentos em dia.</li>
+                                <li>Aprovar as verbas de investimento em mídia.</li>
+                                <li>Fornecer informações, acessos e materiais necessários.</li>
+                                <li>Não interferir nas campanhas sem alinhamento prévio.</li>
+                            </ul>
+                        </div>
+                    </div>
+                     <div class="prose max-w-none mt-6">
+                        <p>8.3. As metas mensais (KPIs) serão estabelecidas em reunião de planejamento estratégico.</p>
+                        <h3 class="text-teal-700 mt-4">Acessos e Propriedade Intelectual</h3>
+                        <p>5.2. O acesso às contas será via agência ROI-360, exigindo login do Instagram e cartões virtuais.</p>
+                        <p>7.1. Criativos fornecidos pela agência ROI-360 são de propriedade da agência.</p>
+                        <p>7.2. Criativos fornecidos pelo CONTRATANTE são de sua propriedade.</p>
+                        <p>7.3. Estratégias desenvolvidas pelo CONTRATADO durante a vigência do contrato, para o propósito da gestão de tráfego, são de sua propriedade intelectual, salvo acordo contrário por escrito.</p>
+                    </div>
+                </section>
+                
+                <!-- Confidencialidade -->
+                <section id="confidentiality" class="tab-content hidden prose max-w-none">
+                    <p class="text-slate-600 mb-6">A proteção de informações sensíveis e o cumprimento da legislação de proteção de dados são cruciais. Esta seção estabelece os deveres de confidencialidade mútua e a conformidade com a Lei Geral de Proteção de Dados (LGPD).</p>
+                    <h2 class="text-teal-700">CLÁUSULA SEXTA – DA CONFIDENCIALIDADE E PROTEÇÃO DE DADOS</h2>
+                    <p>6.1. As partes concordam em manter total confidencialidade sobre todas as informações estratégicas, comerciais, financeiras e de clientes da outra parte.</p>
+                    <p>6.2. A confidencialidade é mútua, cobrindo informações estratégicas da agência e dados financeiros/de clientes do CONTRATANTE.</p>
+                    <p>6.3. O CONTRATADO poderá utilizar informações de resultados e casos de sucesso do Studio D (CONTRATANTE) em seu portfólio ou materiais de divulgação, somente mediante prévia e expressa autorização do CONTRATANTE.</p>
+                    <p>6.4. As partes se comprometem a cumprir com as disposições da Lei Geral de Proteção de Dados Pessoais (LGPD – Lei nº 13.709/2018), em relação aos dados pessoais que venham a ser coletados, tratados ou armazenados em decorrência deste Contrato. O CONTRATANTE é o Controlador dos Dados e o CONTRATADO atuará como Operador dos Dados, conforme definições da LGPD.</p>
+                </section>
+
+                <!-- Assinaturas -->
+                <section id="signatures" class="tab-content hidden prose max-w-none">
+                    <p class="text-slate-600 mb-6">Para formalizar o acordo, as partes e duas testemunhas devem assinar o instrumento. Utilize o campo abaixo para desenhar sua assinatura digitalmente. Lembre-se que esta é uma representação visual da assinatura para este aplicativo; a validade legal depende das leis locais.</p>
+                    <p>E, por estarem assim justas e contratadas, as partes assinam o presente Contrato em 2 (duas) vias de igual teor e forma, na presença das duas testemunhas abaixo.</p>
+                    <p>Blumenau, Santa Catarina, 27 de junho de 2025.</p>
+                    
+                    <div class="mt-12 grid grid-cols-1 md:grid-cols-2 gap-12 text-center">
+                        <div>
+                            <p class="border-t border-slate-400 pt-2" id="contratante-assinatura-nome">Deybson Robson Ortelhado</p>
+                            <p class="text-sm text-slate-500">CONTRATANTE (<span id="contratante-assinatura-cnpj">CNPJ: 33.998.489/0001-91</span>)</p>
+                            <div class="mt-2" id="contratante-assinatura-display">
+                                <!-- Assinatura do Contratante será exibida aqui -->
+                            </div>
+                            <div class="mt-4 flex flex-col items-center">
+                                <canvas id="signature-canvas" class="signature-canvas w-full max-w-sm h-32 rounded-md" width="400" height="128"></canvas>
+                                <div class="mt-2 flex space-x-2">
+                                    <button id="clear-signature-btn" class="px-4 py-2 bg-slate-300 text-slate-800 rounded-md hover:bg-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-opacity-50">Limpar Assinatura</button>
+                                    <button id="save-signature-btn" class="px-4 py-2 bg-teal-500 text-white rounded-md hover:bg-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-opacity-50">Salvar Assinatura</button>
+                                </div>
+                                <p class="text-sm text-slate-500 mt-2">Assinatura digital do CONTRATANTE</p>
+                            </div>
+                        </div>
+                        <div>
+                            <p class="border-t border-slate-400 pt-2">Matheus Henrique Laurindo</p>
+                            <p class="text-sm text-slate-500">CONTRATADO (CPF: 100.936.909-16)</p>
+                        </div>
+                    </div>
+
+                    <h3 class="text-center mt-16 font-bold text-teal-700">TESTEMUNHAS</h3>
+                     <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-12 text-center">
+                        <div>
+                            <p class="border-t border-slate-400 pt-2">Nome Completo:</p>
+                            <p class="text-sm text-slate-500">CPF:</p>
+                        </div>
+                        <div>
+                            <p class="border-t border-slate-400 pt-2">Nome Completo:</p>
+                            <p class="text-sm text-slate-500">CPF:</p>
+                        </div>
+                    </div>
+                    <div class="text-center mt-8">
+                        <button id="generate-pdf-btn" class="px-6 py-3 bg-blue-600 text-white rounded-md text-lg font-semibold hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">Gerar Contrato em PDF</button>
+                    </div>
+                </section>
+
+                <!-- Configurações do Admin -->
+                <section id="admin-settings" class="tab-content hidden admin-section">
+                    <div class="prose max-w-none">
+                        <p class="text-slate-600 mb-6">Esta seção é para configurações do administrador. As alterações aqui afetam o conteúdo do contrato exibido e gerado em PDF para todos os clientes. As informações são salvas automaticamente.</p>
+                    </div>
+                    <div class="p-4 border border-slate-300 rounded-lg bg-slate-50">
+                        <h4 class="font-bold text-lg mb-4 text-teal-700">Configurações de Preço</h4>
+                        <div class="input-group">
+                            <label for="admin-price-1500">Valor do Contrato (até 30/06/2025):</label>
+                            <input type="number" id="admin-price-1500" placeholder="1500.00" step="0.01">
+                        </div>
+                        <div class="input-group">
+                            <label for="admin-price-1900">Valor do Contrato (após 30/06/2025):</label>
+                            <input type="number" id="admin-price-1900" placeholder="1900.00" step="0.01">
+                        </div>
+                    </div>
+
+                    <div class="mt-6 p-4 border border-slate-300 rounded-lg bg-slate-50">
+                        <h4 class="font-bold text-lg mb-4 text-teal-700">Configurações de Nícho e Serviço</h4>
+                        <div class="input-group">
+                            <label for="admin-main-objective-text">Objeto Principal do Contrato (Parágrafo inicial):</label>
+                            <textarea id="admin-main-objective-text" rows="3" placeholder="O presente Contrato tem como objeto a prestação de serviços de Gestão de Tráfego Pago pelo CONTRATADO para o CONTRATANTE, visando..."></textarea>
+                        </div>
+                        <div class="input-group">
+                            <label for="admin-objective-a">Objetivo Específico (a):</label>
+                            <input type="text" id="admin-objective-a" placeholder="Aumento da visualização do perfil...">
+                        </div>
+                        <div class="input-group">
+                            <label for="admin-objective-b">Objetivo Específico (b):</label>
+                            <input type="text" id="admin-objective-b" placeholder="Geração de Leads via WhatsApp para...">
+                        </div>
+                    </div>
+                    <button id="save-admin-settings-btn" class="mt-6 px-4 py-2 bg-teal-500 text-white rounded-md hover:bg-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-opacity-50">Salvar Configurações Admin</button>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const tabs = document.querySelectorAll('.tab-button');
+            const tabContents = document.querySelectorAll('.tab-content');
+
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const target = tab.getAttribute('data-tab');
+
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+
+                    tabContents.forEach(content => {
+                        if (content.id === target) {
+                            content.classList.remove('hidden');
+                        } else {
+                            content.classList.add('hidden');
+                        }
+                    });
+                });
+            });
+
+            // Elementos de exibição e input do admin
+            const adminPrice1500Input = document.getElementById('admin-price-1500');
+            const adminPrice1900Input = document.getElementById('admin-price-1900');
+            const adminMainObjectiveTextInput = document.getElementById('admin-main-objective-text');
+            const adminObjectiveAInput = document.getElementById('admin-objective-a');
+            const adminObjectiveBInput = document.getElementById('admin-objective-b');
+            const saveAdminSettingsBtn = document.getElementById('save-admin-settings-btn');
+
+            // Elementos de exibição do contrato (que o admin modifica)
+            const overviewMainObjective = document.getElementById('overview-main-objective');
+            const clausula1_1Main = document.getElementById('clausula1-1-main');
+            const clausula1_1a = document.getElementById('clausula1-1-a');
+            const clausula1_1b = document.getElementById('clausula1-1-b');
+            const displayPrice1500 = document.getElementById('display-price-1500');
+            const displayPrice1900 = document.getElementById('display-price-1900');
+            const overviewPrice = document.getElementById('overview-price');
+
+            // Funções para carregar e salvar configurações do admin
+            function loadAdminSettings() {
+                const settings = JSON.parse(localStorage.getItem('adminSettings')) || {};
+
+                adminPrice1500Input.value = settings.price1500 || 1500.00;
+                adminPrice1900Input.value = settings.price1900 || 1900.00;
+                adminMainObjectiveTextInput.value = settings.mainObjectiveText || 'O presente Contrato tem como objeto a prestação de serviços de Gestão de Tráfego Pago pelo CONTRATADO para o CONTRATANTE, visando a otimização de campanhas publicitárias online nas plataformas Facebook/Instagram Ads, com os seguintes objetivos principais:';
+                adminObjectiveAInput.value = settings.objectiveA || 'Aumento da visualização do perfil do Studio D no Instagram;';
+                adminObjectiveBInput.value = settings.objectiveB || 'Geração de Leads via WhatsApp para agendamento de serviços de salão de beleza e harmonização facial.';
+            }
+
+            function applyAdminSettingsToContract() {
+                const settings = JSON.parse(localStorage.getItem('adminSettings')) || {};
+
+                const price1500Value = settings.price1500 || 1500.00;
+                const price1900Value = settings.price1900 || 1900.00;
+                const mainObjectiveText = settings.mainObjectiveText || 'Gestão de Tráfego Pago (Facebook/Instagram Ads) para aumentar a visualização do perfil e gerar leads via WhatsApp.';
+                const objectiveA = settings.objectiveA || 'Aumento da visualização do perfil do Studio D no Instagram;';
+                const objectiveB = settings.objectiveB || 'Geração de Leads via WhatsApp para agendamento de serviços de salão de beleza e harmonização facial.';
+
+
+                // Atualiza elementos na seção "Visão Geral"
+                overviewMainObjective.textContent = mainObjectiveText;
+                
+                // Atualiza elementos na seção "Financeiro"
+                displayPrice1500.textContent = `R$ ${price1500Value.toFixed(2).replace('.', ',')}`;
+                displayPrice1900.textContent = `R$ ${price1900Value.toFixed(2).replace('.', ',')}`;
+
+                // Lógica de destaque de preço (usa os valores do admin)
+                const deadline = new Date('2025-06-30T23:59:59-03:00');
+                const now = new Date();
+                const price1500Box = document.getElementById('price-1500');
+                const price1900Box = document.getElementById('price-1900');
+                
+                let currentDisplayedPrice = price1900Value;
+
+                if (now <= deadline) {
+                    price1500Box.classList.add('active');
+                    price1900Box.classList.remove('active');
+                    price1900Box.classList.add('inactive');
+                    price1500Box.classList.remove('inactive');
+                    currentDisplayedPrice = price1500Value;
+                } else {
+                    price1900Box.classList.add('active');
+                    price1500Box.classList.remove('active');
+                    price1500Box.classList.add('inactive');
+                    price1900Box.classList.remove('inactive');
+                }
+                overviewPrice.textContent = `R$ ${currentDisplayedPrice.toFixed(2).replace('.', ',')}`;
+
+
+                // Atualiza elementos na seção "Serviços"
+                clausula1_1Main.textContent = `1.1. ${mainObjectiveText}`;
+                clausula1_1a.textContent = `a) ${objectiveA}`;
+                clausula1_1b.textContent = `b) ${objectiveB}`;
+            }
+
+            saveAdminSettingsBtn.addEventListener('click', () => {
+                const settings = {
+                    price1500: parseFloat(adminPrice1500Input.value),
+                    price1900: parseFloat(adminPrice1900Input.value),
+                    mainObjectiveText: adminMainObjectiveTextInput.value,
+                    objectiveA: adminObjectiveAInput.value,
+                    objectiveB: adminObjectiveBInput.value
+                };
+                localStorage.setItem('adminSettings', JSON.stringify(settings));
+                applyAdminSettingsToContract(); // Aplica as novas configurações imediatamente
+                alert('Configurações do Admin salvas com sucesso!');
+            });
+
+            // Carrega e aplica as configurações do admin ao iniciar
+            loadAdminSettings();
+            applyAdminSettingsToContract();
+            
+            // Gráfico de prazo (permanece o mesmo)
+            const termCtx = document.getElementById('termChart').getContext('2d');
+            new Chart(termCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Prazo Inicial (Meses)'],
+                    datasets: [{
+                        label: 'Duração',
+                        data: [6],
+                        backgroundColor: ['rgba(20, 184, 166, 0.6)'],
+                        borderColor: ['rgba(13, 148, 136, 1)'],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            max: 7,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        },
+                         y: {
+                            grid: {
+                                display: false
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Lógica do formulário do Contratante (existente)
+            const contratanteDisplay = document.getElementById('contratante-display');
+            const contratanteForm = document.getElementById('contratante-form');
+            const editContratanteBtn = document.getElementById('edit-contratante-btn');
+            const saveContratanteBtn = document.getElementById('save-contratante-btn');
+            const cancelEditBtn = document.getElementById('cancel-edit-btn');
+
+            const inputNomeCompleto = document.getElementById('input-nome-completo');
+            const inputNomeFantasia = document.getElementById('input-nome-fantasia');
+            const inputCnpj = document.getElementById('input-cnpj');
+            const inputEndereco = document.getElementById('input-endereco');
+            const inputTelefone = document.getElementById('input-telefone');
+            const inputEmail = document.getElementById('input-email');
+
+            const displayNomeCompleto = document.getElementById('display-nome-completo');
+            const displayNomeFantasia = document.getElementById('display-nome-fantasia');
+            const displayCnpj = document.getElementById('display-cnpj');
+            const displayEndereco = document.getElementById('display-endereco');
+            const displayTelefone = document.getElementById('display-telefone');
+            const displayEmail = document.getElementById('display-email');
+
+            const contratanteAssinaturaNome = document.getElementById('contratante-assinatura-nome');
+            const contratanteAssinaturaCnpj = document.getElementById('contratante-assinatura-cnpj');
+
+            function loadContratanteData() {
+                const data = JSON.parse(localStorage.getItem('contratanteData')) || {};
+                
+                displayNomeCompleto.textContent = data.nomeCompleto || 'Deybson Robson Ortelhado';
+                displayNomeFantasia.textContent = data.nomeFantasia || 'Studio D';
+                displayCnpj.textContent = data.cnpj || '33.998.489/0001-91';
+                displayEndereco.textContent = data.endereco || '[Preencher Endereço Completo do Studio D, incluindo número, bairro, cidade, estado]';
+                displayTelefone.textContent = data.telefone || '(65) 99277-2500';
+                displayEmail.textContent = data.email || 'pilltwiggue@gmail.com';
+
+                inputNomeCompleto.value = data.nomeCompleto || '';
+                inputNomeFantasia.value = data.nomeFantasia || '';
+                inputCnpj.value = data.cnpj || '';
+                inputEndereco.value = data.endereco || '';
+                inputTelefone.value = data.telefone || '';
+                inputEmail.value = data.email || '';
+
+                contratanteAssinaturaNome.textContent = data.nomeCompleto || 'Deybson Robson Ortelhado';
+                contratanteAssinaturaCnpj.textContent = 'CNPJ: ' + (data.cnpj || '33.998.489/0001-91');
+            }
+
+            editContratanteBtn.addEventListener('click', () => {
+                contratanteDisplay.classList.add('hidden');
+                contratanteForm.classList.remove('hidden');
+            });
+
+            saveContratanteBtn.addEventListener('click', () => {
+                const data = {
+                    nomeCompleto: inputNomeCompleto.value,
+                    nomeFantasia: inputNomeFantasia.value,
+                    cnpj: inputCnpj.value,
+                    endereco: inputEndereco.value,
+                    telefone: inputTelefone.value,
+                    email: inputEmail.value
+                };
+                localStorage.setItem('contratanteData', JSON.stringify(data));
+                loadContratanteData();
+                contratanteForm.classList.add('hidden');
+                contratanteDisplay.classList.remove('hidden');
+            });
+
+            cancelEditBtn.addEventListener('click', () => {
+                loadContratanteData(); 
+                contratanteForm.classList.add('hidden');
+                contratanteDisplay.classList.remove('hidden');
+            });
+
+            loadContratanteData(); 
+
+            // Lógica de Assinatura Digital (existente)
+            const signatureCanvas = document.getElementById('signature-canvas');
+            const signatureCtx = signatureCanvas.getContext('2d');
+            const clearSignatureBtn = document.getElementById('clear-signature-btn');
+            const saveSignatureBtn = document.getElementById('save-signature-btn');
+            const contratanteAssinaturaDisplay = document.getElementById('contratante-assinatura-display');
+
+            let drawing = false;
+
+            function startDrawing(e) {
+                drawing = true;
+                draw(e);
+            }
+
+            function endDrawing() {
+                drawing = false;
+                signatureCtx.beginPath();
+            }
+
+            function draw(e) {
+                if (!drawing) return;
+
+                e.preventDefault(); 
+
+                const rect = signatureCanvas.getBoundingClientRect();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+                const x = clientX - rect.left;
+                const y = clientY - rect.top;
+
+                signatureCtx.lineWidth = 2;
+                signatureCtx.lineCap = 'round';
+                signatureCtx.strokeStyle = '#000000';
+
+                signatureCtx.lineTo(x, y);
+                signatureCtx.stroke();
+                signatureCtx.beginPath();
+                signatureCtx.moveTo(x, y);
+            }
+
+            signatureCanvas.addEventListener('mousedown', startDrawing);
+            signatureCanvas.addEventListener('mouseup', endDrawing);
+            signatureCanvas.addEventListener('mousemove', draw);
+            signatureCanvas.addEventListener('mouseout', endDrawing); 
+
+            signatureCanvas.addEventListener('touchstart', startDrawing);
+            signatureCanvas.addEventListener('touchend', endDrawing);
+            signatureCanvas.addEventListener('touchmove', draw);
+
+            clearSignatureBtn.addEventListener('click', () => {
+                signatureCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+                localStorage.removeItem('contratanteSignature');
+                contratanteAssinaturaDisplay.innerHTML = ''; 
+            });
+
+            saveSignatureBtn.addEventListener('click', () => {
+                const dataURL = signatureCanvas.toDataURL('image/png');
+                localStorage.setItem('contratanteSignature', dataURL);
+                displaySignature(dataURL);
+            });
+
+            function displaySignature(dataURL) {
+                contratanteAssinaturaDisplay.innerHTML = ''; 
+                if (dataURL) {
+                    const img = document.createElement('img');
+                    img.src = dataURL;
+                    img.alt = 'Assinatura do Contratante';
+                    img.classList.add('w-full', 'max-w-xs', 'h-auto', 'mx-auto', 'mt-2', 'border', 'border-slate-200', 'rounded-md');
+                    contratanteAssinaturaDisplay.appendChild(img);
+                }
+            }
+
+            function loadSignature() {
+                const savedSignature = localStorage.getItem('contratanteSignature');
+                if (savedSignature) {
+                    const img = new Image();
+                    img.onload = () => {
+                        signatureCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+                        signatureCtx.drawImage(img, 0, 0, signatureCanvas.width, signatureCanvas.height);
+                        displaySignature(savedSignature);
+                    };
+                    img.src = savedSignature;
+                }
+            }
+            
+            loadSignature(); 
+
+            // Lógica de Geração de PDF (ajustada para capturar conteúdo dinâmico do admin)
+            const generatePdfBtn = document.getElementById('generate-pdf-btn');
+
+            generatePdfBtn.addEventListener('click', async () => {
+                const editButtonHidden = editContratanteBtn.classList.contains('hidden');
+                const formHidden = contratanteForm.classList.contains('hidden');
+                
+                editContratanteBtn.classList.add('hidden');
+                contratanteForm.classList.add('hidden');
+                document.getElementById('clear-signature-btn').classList.add('hidden');
+                document.getElementById('save-signature-btn').classList.add('hidden');
+                signatureCanvas.classList.add('hidden'); 
+
+                contratanteDisplay.classList.remove('hidden');
+
+                tabContents.forEach(content => content.classList.remove('hidden'));
+                tabs.forEach(t => t.classList.remove('active')); 
+
+
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF('p', 'mm', 'a4'); 
+
+                const content = document.querySelector('.bg-white.rounded-lg.shadow-lg'); 
+
+                const pdfWidth = doc.internal.pageSize.getWidth();
+                const pdfHeight = doc.internal.pageSize.getHeight();
+                const margin = 10; 
+
+                try {
+                    const canvas = await html2canvas(content, { scale: 2 }); 
+                    const imgData = canvas.toDataURL('image/png');
+
+                    const imgWidth = pdfWidth - (2 * margin);
+                    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                    let heightLeft = imgHeight;
+
+                    let position = margin;
+
+                    doc.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight);
+                    heightLeft -= pdfHeight;
+
+                    while (heightLeft >= 0) {
+                        position = heightLeft - imgHeight + margin;
+                        doc.addPage();
+                        doc.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight);
+                        heightLeft -= pdfHeight;
+                    }
+
+                    doc.save('Contrato_Servicos_Trafego_Pago.pdf');
+                } catch (error) {
+                    console.error('Erro ao gerar PDF:', error);
+                    alert('Houve um erro ao gerar o PDF. Por favor, tente novamente.');
+                } finally {
+                    if (editButtonHidden) {
+                        editContratanteBtn.classList.add('hidden');
+                    } else {
+                        editContratanteBtn.classList.remove('hidden');
+                    }
+                    if (formHidden) {
+                        contratanteForm.classList.add('hidden');
+                    } else {
+                        contratanteForm.classList.remove('hidden');
+                    }
+
+                    document.getElementById('clear-signature-btn').classList.remove('hidden');
+                    document.getElementById('save-signature-btn').classList.remove('hidden');
+                    signatureCanvas.classList.remove('hidden'); 
+
+                    tabContents.forEach(content => content.classList.add('hidden'));
+                    document.getElementById('signatures').classList.remove('hidden');
+                    document.querySelector('[data-tab="signatures"]').classList.add('active');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
