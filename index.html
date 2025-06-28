@@ -9,7 +9,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <!-- Chosen Palette: Warm Neutral & Soft Teal -->
-    <!-- Application Structure Plan: A tabbed-dashboard interface was chosen to deconstruct the dense legal contract into logical, user-friendly sections. This structure abandons the linear format of the original document in favor of a task-oriented approach. Users can immediately access key sections like "Financeiro" or "Obrigações" without scrolling. This improves usability by allowing parties to quickly find specific information and understand the core components of the agreement at a glance. New client input and signature features are integrated into the 'Partes' and 'Assinaturas' tabs, respectively, to maintain a cohesive flow. An 'Admin Settings' tab is added for dynamic content modification, enhancing the contract's adaptability for various niches. -->
+    <!-- Application Structure Plan: A tabbed-dashboard interface was chosen to deconstruct the dense legal contract into logical, user-friendly sections. This structure abandons the linear format of the original document in favor of a task-oriented approach. Users can immediately access key sections like "Financeiro" or "Obrigações" without scrolling. This improves usability by allowing parties to quickly find specific information and understand the core components of the agreement at a glance. New client input and signature features are integrated into the 'Partes' and 'Assinaturas' tabs, respectively, to maintain a cohesive flow. An 'Admin Settings' tab is added for dynamic content modification, enhancing the contract's adaptability for various niches. A new client history feature is added to the 'Admin Settings' for managing multiple client profiles. -->
     <!-- Visualization & Content Choices: 
         - Report Info: Parties' details -> Goal: Inform/Input -> Viz/Presentation: Styled cards with icons, now with an expandable form -> Interaction: Static display + form input, save/load from localStorage -> Justification: Clear identification, now with user input for personalization and persistence. -> Library/Method: HTML/Tailwind, Vanilla JS.
         - Report Info: Contract clauses -> Goal: Organize -> Viz/Presentation: Tabbed interface -> Interaction: Click to switch views -> Justification: Breaks down complex information into manageable chunks, improving navigation and comprehension. -> Library/Method: Vanilla JS.
@@ -19,6 +19,7 @@
         - Report Info: Client Signature -> Goal: Record/Formalize -> Viz/Presentation: Interactive canvas for drawing, image display -> Interaction: Draw, clear, save, load from localStorage -> Justification: Allows digital capture of signature for contract formalization, even if not legally binding in all jurisdictions. -> Library/Method: HTML Canvas, Vanilla JS.
         - Report Info: Full Contract -> Goal: Export -> Viz/Presentation: PDF document -> Interaction: Button click to generate PDF -> Justification: Provides a tangible, shareable, and printable version of the completed contract. -> Library/Method: jsPDF, html2canvas.
         - Report Info: Niche/Service Description -> Goal: Customize -> Viz/Presentation: Admin-only input fields -> Interaction: Text input, save/load from localStorage -> Justification: Enables quick adaptation of contract specifics for different client needs. -> Library/Method: HTML/Tailwind, Vanilla JS.
+        - Report Info: Client Data History -> Goal: Organize/Manage -> Viz/Presentation: List of client entries in admin section -> Interaction: Load selected client data, remove client data -> Justification: Allows admin to store and retrieve multiple client profiles, improving workflow efficiency. -> Library/Method: HTML/Tailwind, Vanilla JS.
     -->
     <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
     <style>
@@ -92,7 +93,7 @@
         
         <header class="text-center mb-8">
             <h1 class="text-3xl md:text-4xl font-bold text-teal-600">Contrato de Gestão de Tráfego Pago</h1>
-            <p class="text-slate-500 mt-2">Studio D & Matheus Henrique Laurindo</p>
+            <p id="header-subtitle" class="text-slate-500 mt-2">Studio D & Matheus Henrique Laurindo</p>
         </header>
 
         <div class="bg-white rounded-lg shadow-lg p-4 sm:p-6">
@@ -144,37 +145,39 @@
                                 <p><strong>Razão Social:</strong> <span id="display-nome-completo">Deybson Robson Ortelhado</span></p>
                                 <p><strong>Nome Fantasia:</strong> <span id="display-nome-fantasia">Studio D</span></p>
                                 <p><strong>CNPJ:</strong> <span id="display-cnpj">33.998.489/0001-91</span></p>
-                                <p><strong>Endereço:</strong> <span id="display-endereco">[Preencher Endereço Completo do Studio D, incluindo número, bairro, cidade, estado]</span> - Várzea Grande, Mato Grosso, CEP 78110-000</p>
+                                <!-- ATENÇÃO AQUI: TODO O ENDEREÇO ESTÁ DENTRO DO SPAN AGORA -->
+                                <p><strong>Endereço:</strong> <span id="display-endereco">[Preencher Endereço Completo do Studio D, incluindo número, bairro, cidade, estado] - Várzea Grande, Mato Grosso, CEP 78110-000</span></p>
                                 <p><strong>Telefone:</strong> <span id="display-telefone">(65) 99277-2500</span></p>
                                 <p><strong>E-mail:</strong> <span id="display-email">pilltwiggue@gmail.com</span></p>
                                 <button id="edit-contratante-btn" class="mt-4 px-4 py-2 bg-teal-500 text-white rounded-md hover:bg-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-opacity-50">Editar Dados do Contratante</button>
+                                <button id="clear-current-contratante-btn" class="mt-4 ml-2 px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50">Limpar Dados do Contratante Atual</button>
                             </div>
 
                             <div id="contratante-form" class="form-section hidden mt-4 p-4 border border-slate-300 rounded-lg bg-slate-50">
                                 <h4 class="font-bold text-lg mb-4 text-teal-700">Preencher Dados do Contratante</h4>
                                 <div class="input-group">
                                     <label for="input-nome-completo">Nome Completo/Razão Social:</label>
-                                    <input type="text" id="input-nome-completo" placeholder="Nome Completo/Razão Social">
+                                    <input type="text" id="input-nome-completo" placeholder="Nome Completo/Razão Social" autocomplete="off">
                                 </div>
                                 <div class="input-group">
                                     <label for="input-nome-fantasia">Nome Fantasia:</label>
-                                    <input type="text" id="input-nome-fantasia" placeholder="Nome Fantasia">
+                                    <input type="text" id="input-nome-fantasia" placeholder="Nome Fantasia" autocomplete="off">
                                 </div>
                                 <div class="input-group">
                                     <label for="input-cnpj">CNPJ:</label>
-                                    <input type="text" id="input-cnpj" placeholder="CNPJ">
+                                    <input type="text" id="input-cnpj" placeholder="CNPJ" autocomplete="off">
                                 </div>
                                 <div class="input-group">
                                     <label for="input-endereco">Endereço:</label>
-                                    <input type="text" id="input-endereco" placeholder="Endereço Completo">
+                                    <input type="text" id="input-endereco" placeholder="Endereço Completo" autocomplete="off">
                                 </div>
                                 <div class="input-group">
                                     <label for="input-telefone">Telefone:</label>
-                                    <input type="text" id="input-telefone" placeholder="Telefone">
+                                    <input type="text" id="input-telefone" placeholder="Telefone" autocomplete="off">
                                 </div>
                                 <div class="input-group">
                                     <label for="input-email">E-mail:</label>
-                                    <input type="email" id="input-email" placeholder="E-mail">
+                                    <input type="email" id="input-email" placeholder="E-mail" autocomplete="off">
                                 </div>
                                 <button id="save-contratante-btn" class="mt-4 px-4 py-2 bg-teal-500 text-white rounded-md hover:bg-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-opacity-50">Salvar Dados</button>
                                 <button id="cancel-edit-btn" class="mt-4 ml-2 px-4 py-2 bg-slate-300 text-slate-800 rounded-md hover:bg-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-opacity-50">Cancelar</button>
@@ -275,7 +278,7 @@
                                 <li>Aprovar as verbas de investimento em mídia.</li>
                                 <li>Fornecer informações, acessos e materiais necessários.</li>
                                 <li>Não interferir nas campanhas sem alinhamento prévio.</li>
-                            </ul>
+                             </ul>
                         </div>
                     </div>
                      <div class="prose max-w-none mt-6">
@@ -374,7 +377,27 @@
                             <input type="text" id="admin-objective-b" placeholder="Geração de Leads via WhatsApp para...">
                         </div>
                     </div>
+
+                    <div class="mt-6 p-4 border border-slate-300 rounded-lg bg-slate-50">
+                        <h4 class="font-bold text-lg mb-4 text-teal-700">Configurações da Legenda do Cabeçalho</h4>
+                        <div class="input-group">
+                            <label for="admin-header-contratante-name">Nome da Empresa Contratante (na legenda):</label>
+                            <input type="text" id="admin-header-contratante-name" placeholder="Studio D">
+                        </div>
+                        <div class="input-group">
+                            <label for="admin-header-contratado-name">Nome do Contratado (na legenda):</label>
+                            <input type="text" id="admin-header-contratado-name" placeholder="Matheus Henrique Laurindo">
+                        </div>
+                    </div>
+
                     <button id="save-admin-settings-btn" class="mt-6 px-4 py-2 bg-teal-500 text-white rounded-md hover:bg-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-opacity-50">Salvar Configurações Admin</button>
+
+                    <div class="mt-8 p-4 border border-slate-300 rounded-lg bg-slate-50">
+                        <h4 class="font-bold text-lg mb-4 text-teal-700">Histórico de Clientes Anteriores</h4>
+                        <div id="client-history-display" class="space-y-4">
+                            <p class="text-slate-500">Nenhum cliente no histórico.</p>
+                        </div>
+                    </div>
                 </section>
             </main>
         </div>
@@ -384,6 +407,104 @@
         document.addEventListener('DOMContentLoaded', function() {
             const tabs = document.querySelectorAll('.tab-button');
             const tabContents = document.querySelectorAll('.tab-content');
+
+            // Lógica de Assinatura Digital: Declaração e inicialização movidas para o início do DOMContentLoaded
+            const signatureCanvas = document.getElementById('signature-canvas');
+            const signatureCtx = signatureCanvas.getContext('2d');
+            const clearSignatureBtn = document.getElementById('clear-signature-btn');
+            const saveSignatureBtn = document.getElementById('save-signature-btn');
+            const contratanteAssinaturaDisplay = document.getElementById('contratante-assinatura-display');
+
+            let drawing = false;
+
+            function startDrawing(e) {
+                drawing = true;
+                draw(e);
+            }
+
+            function endDrawing() {
+                drawing = false;
+                signatureCtx.beginPath();
+            }
+
+            function draw(e) {
+                if (!drawing) return;
+
+                e.preventDefault(); 
+
+                const rect = signatureCanvas.getBoundingClientRect();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+                const x = clientX - rect.left;
+                const y = clientY - rect.top;
+
+                signatureCtx.lineWidth = 2;
+                signatureCtx.lineCap = 'round';
+                signatureCtx.strokeStyle = '#000000';
+
+                signatureCtx.lineTo(x, y);
+                signatureCtx.stroke();
+                signatureCtx.beginPath();
+                signatureCtx.moveTo(x, y);
+            }
+
+            signatureCanvas.addEventListener('mousedown', startDrawing);
+            signatureCanvas.addEventListener('mouseup', endDrawing);
+            signatureCanvas.addEventListener('mousemove', draw);
+            signatureCanvas.addEventListener('mouseout', endDrawing); 
+
+            signatureCanvas.addEventListener('touchstart', startDrawing);
+            signatureCanvas.addEventListener('touchend', endDrawing);
+            signatureCanvas.addEventListener('touchmove', draw);
+
+            clearSignatureBtn.addEventListener('click', () => {
+                signatureCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+                contratanteAssinaturaDisplay.innerHTML = ''; 
+                
+                const currentContratanteData = JSON.parse(localStorage.getItem('contratanteData')) || {};
+                currentContratanteData.signature = ''; // Remove a assinatura do objeto de dados
+                localStorage.setItem('contratanteData', JSON.stringify(currentContratanteData));
+                addClientToHistory(currentContratanteData); // Atualiza o histórico sem a assinatura
+            });
+
+            saveSignatureBtn.addEventListener('click', () => {
+                const dataURL = signatureCanvas.toDataURL('image/png');
+                localStorage.setItem('contratanteSignature', dataURL);
+                displaySignature(dataURL);
+                // Atualiza também os dados do contratante ativo com a nova assinatura
+                const currentContratanteData = JSON.parse(localStorage.getItem('contratanteData')) || {};
+                currentContratanteData.signature = dataURL;
+                localStorage.setItem('contratanteData', JSON.stringify(currentContratanteData));
+                addClientToHistory(currentContratanteData); // Atualiza o histórico com a nova assinatura
+            });
+
+            function displaySignature(dataURL) {
+                contratanteAssinaturaDisplay.innerHTML = ''; 
+                if (dataURL) {
+                    const img = document.createElement('img');
+                    img.src = dataURL;
+                    img.alt = 'Assinatura do Contratante';
+                    img.classList.add('w-full', 'max-w-xs', 'h-auto', 'mx-auto', 'mt-2', 'border', 'border-slate-200', 'rounded-md');
+                    contratanteAssinaturaDisplay.appendChild(img);
+                }
+            }
+
+            function loadSignature() {
+                const savedSignature = localStorage.getItem('contratanteSignature');
+                if (savedSignature) {
+                    const img = new Image();
+                    img.onload = () => {
+                        signatureCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+                        signatureCtx.drawImage(img, 0, 0, signatureCanvas.width, signatureCanvas.height);
+                        displaySignature(savedSignature);
+                    };
+                    img.src = savedSignature;
+                }
+            }
+            
+            // Moved loadSignature call to after signatureCtx is initialized
+            loadSignature(); 
 
             tabs.forEach(tab => {
                 tab.addEventListener('click', () => {
@@ -408,6 +529,8 @@
             const adminMainObjectiveTextInput = document.getElementById('admin-main-objective-text');
             const adminObjectiveAInput = document.getElementById('admin-objective-a');
             const adminObjectiveBInput = document.getElementById('admin-objective-b');
+            const adminHeaderContratanteName = document.getElementById('admin-header-contratante-name');
+            const adminHeaderContratadoName = document.getElementById('admin-header-contratado-name');
             const saveAdminSettingsBtn = document.getElementById('save-admin-settings-btn');
 
             // Elementos de exibição do contrato (que o admin modifica)
@@ -418,6 +541,8 @@
             const displayPrice1500 = document.getElementById('display-price-1500');
             const displayPrice1900 = document.getElementById('display-price-1900');
             const overviewPrice = document.getElementById('overview-price');
+            const headerSubtitle = document.getElementById('header-subtitle');
+
 
             // Funções para carregar e salvar configurações do admin
             function loadAdminSettings() {
@@ -428,6 +553,8 @@
                 adminMainObjectiveTextInput.value = settings.mainObjectiveText || 'O presente Contrato tem como objeto a prestação de serviços de Gestão de Tráfego Pago pelo CONTRATADO para o CONTRATANTE, visando a otimização de campanhas publicitárias online nas plataformas Facebook/Instagram Ads, com os seguintes objetivos principais:';
                 adminObjectiveAInput.value = settings.objectiveA || 'Aumento da visualização do perfil do Studio D no Instagram;';
                 adminObjectiveBInput.value = settings.objectiveB || 'Geração de Leads via WhatsApp para agendamento de serviços de salão de beleza e harmonização facial.';
+                adminHeaderContratanteName.value = settings.headerContratanteName || 'Studio D';
+                adminHeaderContratadoName.value = settings.headerContratadoName || 'Matheus Henrique Laurindo';
             }
 
             function applyAdminSettingsToContract() {
@@ -438,6 +565,8 @@
                 const mainObjectiveText = settings.mainObjectiveText || 'Gestão de Tráfego Pago (Facebook/Instagram Ads) para aumentar a visualização do perfil e gerar leads via WhatsApp.';
                 const objectiveA = settings.objectiveA || 'Aumento da visualização do perfil do Studio D no Instagram;';
                 const objectiveB = settings.objectiveB || 'Geração de Leads via WhatsApp para agendamento de serviços de salão de beleza e harmonização facial.';
+                const headerContratanteName = settings.headerContratanteName || 'Studio D';
+                const headerContratadoName = settings.headerContratadoName || 'Matheus Henrique Laurindo';
 
 
                 // Atualiza elementos na seção "Visão Geral"
@@ -474,6 +603,9 @@
                 clausula1_1Main.textContent = `1.1. ${mainObjectiveText}`;
                 clausula1_1a.textContent = `a) ${objectiveA}`;
                 clausula1_1b.textContent = `b) ${objectiveB}`;
+
+                // Atualiza o subtítulo do cabeçalho
+                headerSubtitle.textContent = `${headerContratanteName} & ${headerContratadoName}`;
             }
 
             saveAdminSettingsBtn.addEventListener('click', () => {
@@ -482,7 +614,9 @@
                     price1900: parseFloat(adminPrice1900Input.value),
                     mainObjectiveText: adminMainObjectiveTextInput.value,
                     objectiveA: adminObjectiveAInput.value,
-                    objectiveB: adminObjectiveBInput.value
+                    objectiveB: adminObjectiveBInput.value,
+                    headerContratanteName: adminHeaderContratanteName.value,
+                    headerContratadoName: adminHeaderContratadoName.value
                 };
                 localStorage.setItem('adminSettings', JSON.stringify(settings));
                 applyAdminSettingsToContract(); // Aplica as novas configurações imediatamente
@@ -539,6 +673,7 @@
             const editContratanteBtn = document.getElementById('edit-contratante-btn');
             const saveContratanteBtn = document.getElementById('save-contratante-btn');
             const cancelEditBtn = document.getElementById('cancel-edit-btn');
+            const clearCurrentContratanteBtn = document.getElementById('clear-current-contratante-btn'); 
 
             const inputNomeCompleto = document.getElementById('input-nome-completo');
             const inputNomeFantasia = document.getElementById('input-nome-fantasia');
@@ -557,25 +692,67 @@
             const contratanteAssinaturaNome = document.getElementById('contratante-assinatura-nome');
             const contratanteAssinaturaCnpj = document.getElementById('contratante-assinatura-cnpj');
 
-            function loadContratanteData() {
-                const data = JSON.parse(localStorage.getItem('contratanteData')) || {};
+            const clientHistoryDisplay = document.getElementById('client-history-display');
+
+            function loadContratanteData(dataToLoad = null) { // Make dataToLoad explicitly nullable
+                const defaultContratanteValues = { // Default values if nothing is stored or passed
+                    nomeCompleto: 'Deybson Robson Ortelhado',
+                    nomeFantasia: 'Studio D',
+                    cnpj: '33.998.489/0001-91',
+                    endereco: '[Preencher Endereço Completo do Studio D, incluindo número, bairro, cidade, estado] - Várzea Grande, Mato Grosso, CEP 78110-000',
+                    telefone: '(65) 99277-2500',
+                    email: 'pilltwiggue@gmail.com'
+                };
+
+                let dataToUse = {};
+                // If specific data is passed (e.g., from clear button or history load), use it
+                if (dataToLoad !== null) {
+                    dataToUse = dataToLoad;
+                } else {
+                    // Otherwise, try to load from local storage
+                    const storedData = JSON.parse(localStorage.getItem('contratanteData'));
+                    if (storedData) {
+                        dataToUse = storedData;
+                    } else {
+                        // If no stored data, use initial default values
+                        dataToUse = defaultContratanteValues;
+                    }
+                }
+
+                // Display elements - set to empty string if the property is not defined, otherwise use the data
+                displayNomeCompleto.textContent = dataToUse.nomeCompleto || ''; 
+                displayNomeFantasia.textContent = dataToUse.nomeFantasia || '';
+                displayCnpj.textContent = dataToUse.cnpj || '';
+                displayEndereco.textContent = dataToUse.endereco || ''; 
+                displayTelefone.textContent = dataToUse.telefone || '';
+                displayEmail.textContent = dataToUse.email || '';
+
+                // Input elements - set to empty string if the property is not defined, otherwise use the data
+                inputNomeCompleto.value = dataToUse.nomeCompleto || '';
+                inputNomeFantasia.value = dataToUse.nomeFantasia || ''; // Corrected typo here from dataToUs
+                inputCnpj.value = dataToUse.cnpj || '';
+                inputEndereco.value = dataToUse.endereco || '';
+                inputTelefone.value = dataToUse.telefone || '';
+                inputEmail.value = dataToUse.email || '';
+
+                // Signature section text - set to empty string if the property is not defined
+                contratanteAssinaturaNome.textContent = dataToUse.nomeCompleto || '';
+                contratanteAssinaturaCnpj.textContent = 'CNPJ: ' + (dataToUse.cnpj || '');
                 
-                displayNomeCompleto.textContent = data.nomeCompleto || 'Deybson Robson Ortelhado';
-                displayNomeFantasia.textContent = data.nomeFantasia || 'Studio D';
-                displayCnpj.textContent = data.cnpj || '33.998.489/0001-91';
-                displayEndereco.textContent = data.endereco || '[Preencher Endereço Completo do Studio D, incluindo número, bairro, cidade, estado]';
-                displayTelefone.textContent = data.telefone || '(65) 99277-2500';
-                displayEmail.textContent = data.email || 'pilltwiggue@gmail.com';
-
-                inputNomeCompleto.value = data.nomeCompleto || '';
-                inputNomeFantasia.value = data.nomeFantasia || '';
-                inputCnpj.value = data.cnpj || '';
-                inputEndereco.value = data.endereco || '';
-                inputTelefone.value = data.telefone || '';
-                inputEmail.value = data.email || '';
-
-                contratanteAssinaturaNome.textContent = data.nomeCompleto || 'Deybson Robson Ortelhado';
-                contratanteAssinaturaCnpj.textContent = 'CNPJ: ' + (data.cnpj || '33.998.489/0001-91');
+                // Signature canvas and display
+                const signatureData = dataToUse.signature || ''; // Use signature from dataToUse or empty
+                if (signatureData) {
+                    displaySignature(signatureData);
+                    const img = new Image();
+                    img.onload = () => {
+                        signatureCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+                        signatureCtx.drawImage(img, 0, 0, signatureCanvas.width, signatureCanvas.height);
+                    };
+                    img.src = signatureData;
+                } else {
+                    signatureCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+                    contratanteAssinaturaDisplay.innerHTML = '';
+                }
             }
 
             editContratanteBtn.addEventListener('click', () => {
@@ -590,109 +767,151 @@
                     cnpj: inputCnpj.value,
                     endereco: inputEndereco.value,
                     telefone: inputTelefone.value,
-                    email: inputEmail.value
+                    email: inputEmail.value,
+                    signature: localStorage.getItem('contratanteSignature') || '' 
                 };
                 localStorage.setItem('contratanteData', JSON.stringify(data));
-                loadContratanteData();
+                addClientToHistory(data); 
+                loadContratanteData(data); 
                 contratanteForm.classList.add('hidden');
                 contratanteDisplay.classList.remove('hidden');
             });
 
             cancelEditBtn.addEventListener('click', () => {
-                loadContratanteData(); 
+                const storedData = JSON.parse(localStorage.getItem('contratanteData'));
+                loadContratanteData(storedData); // Carrega os dados que estavam salvos
                 contratanteForm.classList.add('hidden');
                 contratanteDisplay.classList.remove('hidden');
             });
 
-            loadContratanteData(); 
+            clearCurrentContratanteBtn.addEventListener('click', () => {
+                const currentDataFromInputs = { // Get current data directly from inputs, not localStorage
+                    nomeCompleto: inputNomeCompleto.value, 
+                    nomeFantasia: inputNomeFantasia.value,
+                    cnpj: inputCnpj.value,
+                    endereco: inputEndereco.value, 
+                    telefone: inputTelefone.value,
+                    email: inputEmail.value,
+                    signature: localStorage.getItem('contratanteSignature') || ''
+                };
+                
+                // Only save to history if nomeCompleto is not empty, implying data was actually entered
+                if (currentDataFromInputs.nomeCompleto.trim() !== '') { 
+                    addClientToHistory(currentDataFromInputs); // Salva os dados atuais no histórico
+                }
 
-            // Lógica de Assinatura Digital (existente)
-            const signatureCanvas = document.getElementById('signature-canvas');
-            const signatureCtx = signatureCanvas.getContext('2d');
-            const clearSignatureBtn = document.getElementById('clear-signature-btn');
-            const saveSignatureBtn = document.getElementById('save-signature-btn');
-            const contratanteAssinaturaDisplay = document.getElementById('contratante-assinatura-display');
-
-            let drawing = false;
-
-            function startDrawing(e) {
-                drawing = true;
-                draw(e);
-            }
-
-            function endDrawing() {
-                drawing = false;
-                signatureCtx.beginPath();
-            }
-
-            function draw(e) {
-                if (!drawing) return;
-
-                e.preventDefault(); 
-
-                const rect = signatureCanvas.getBoundingClientRect();
-                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-
-                const x = clientX - rect.left;
-                const y = clientY - rect.top;
-
-                signatureCtx.lineWidth = 2;
-                signatureCtx.lineCap = 'round';
-                signatureCtx.strokeStyle = '#000000';
-
-                signatureCtx.lineTo(x, y);
-                signatureCtx.stroke();
-                signatureCtx.beginPath();
-                signatureCtx.moveTo(x, y);
-            }
-
-            signatureCanvas.addEventListener('mousedown', startDrawing);
-            signatureCanvas.addEventListener('mouseup', endDrawing);
-            signatureCanvas.addEventListener('mousemove', draw);
-            signatureCanvas.addEventListener('mouseout', endDrawing); 
-
-            signatureCanvas.addEventListener('touchstart', startDrawing);
-            signatureCanvas.addEventListener('touchend', endDrawing);
-            signatureCanvas.addEventListener('touchmove', draw);
-
-            clearSignatureBtn.addEventListener('click', () => {
-                signatureCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+                localStorage.removeItem('contratanteData');
                 localStorage.removeItem('contratanteSignature');
-                contratanteAssinaturaDisplay.innerHTML = ''; 
+                
+                // Explicitamente limpa todos os campos de entrada
+                inputNomeCompleto.value = '';
+                inputNomeFantasia.value = '';
+                inputCnpj.value = '';
+                inputEndereco.value = ''; // Explicitamente limpa o campo de endereço
+                inputTelefone.value = '';
+                inputEmail.value = '';
+
+                // Explicitamente limpa todos os campos de exibição
+                displayNomeCompleto.textContent = '';
+                displayNomeFantasia.textContent = '';
+                displayCnpj.textContent = '';
+                displayEndereco.textContent = ''; // Explicitamente limpa o display do endereço
+                displayTelefone.textContent = '';
+                displayEmail.textContent = '';
+                contratanteAssinaturaNome.textContent = '';
+                contratanteAssinaturaCnpj.textContent = 'CNPJ: '; 
+
+                // Limpa o canvas de assinatura e a exibição
+                signatureCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+                contratanteAssinaturaDisplay.innerHTML = '';
+
+                alert('Dados do Contratante atual limpos e, se preenchidos, salvos no histórico!');
             });
 
-            saveSignatureBtn.addEventListener('click', () => {
-                const dataURL = signatureCanvas.toDataURL('image/png');
-                localStorage.setItem('contratanteSignature', dataURL);
-                displaySignature(dataURL);
-            });
+            // Chama loadContratanteData com os dados do localStorage na carga inicial
+            const initialStoredData = JSON.parse(localStorage.getItem('contratanteData'));
+            loadContratanteData(initialStoredData);
 
-            function displaySignature(dataURL) {
-                contratanteAssinaturaDisplay.innerHTML = ''; 
-                if (dataURL) {
-                    const img = document.createElement('img');
-                    img.src = dataURL;
-                    img.alt = 'Assinatura do Contratante';
-                    img.classList.add('w-full', 'max-w-xs', 'h-auto', 'mx-auto', 'mt-2', 'border', 'border-slate-200', 'rounded-md');
-                    contratanteAssinaturaDisplay.appendChild(img);
-                }
+            // Lógica de Histórico de Clientes
+            function getClientHistory() {
+                return JSON.parse(localStorage.getItem('clientHistory')) || [];
             }
 
-            function loadSignature() {
-                const savedSignature = localStorage.getItem('contratanteSignature');
-                if (savedSignature) {
-                    const img = new Image();
-                    img.onload = () => {
-                        signatureCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
-                        signatureCtx.drawImage(img, 0, 0, signatureCanvas.width, signatureCanvas.height);
-                        displaySignature(savedSignature);
-                    };
-                    img.src = savedSignature;
-                }
+            function saveClientHistory(history) {
+                localStorage.setItem('clientHistory', JSON.stringify(history));
+                displayClientHistory(); // Atualiza a exibição do histórico
             }
-            
-            loadSignature(); 
+
+            function addClientToHistory(clientData) {
+                let history = getClientHistory();
+                const existingIndex = history.findIndex(client => 
+                    client.nomeCompleto === clientData.nomeCompleto && client.cnpj === clientData.cnpj
+                );
+
+                if (existingIndex > -1) {
+                    history[existingIndex] = clientData; // Atualiza o cliente existente
+                } else {
+                    history.push(clientData); // Adiciona novo cliente
+                }
+                saveClientHistory(history);
+            }
+
+            function displayClientHistory() {
+                const history = getClientHistory();
+                clientHistoryDisplay.innerHTML = ''; // Limpa a exibição atual
+
+                if (history.length === 0) {
+                    clientHistoryDisplay.innerHTML = '<p class="text-slate-500">Nenhum cliente no histórico.</p>';
+                    return;
+                }
+
+                history.forEach((client, index) => {
+                    const clientCard = document.createElement('div');
+                    clientCard.classList.add('border', 'border-slate-200', 'rounded-lg', 'p-4', 'bg-white');
+                    clientCard.innerHTML = `
+                        <h5 class="font-bold text-md mb-2 text-teal-700">Dados do Cliente ${index + 1}</h5>
+                        <p><strong>Nome Completo/Razão Social:</strong> ${client.nomeCompleto || 'N/A'}</p>
+                        <p><strong>Nome Fantasia:</strong> ${client.nomeFantasia || 'N/A'}</p>
+                        <p><strong>CNPJ:</strong> ${client.cnpj || 'N/A'}</p>
+                        <p><strong>Endereço:</strong> ${client.endereco || 'N/A'}</p>
+                        <p><strong>Telefone:</strong> ${client.telefone || 'N/A'}</p>
+                        <p><strong>E-mail:</strong> ${client.email || 'N/A'}</p>
+                        <div class="mt-3 flex space-x-2">
+                            <button class="load-client-btn px-3 py-1 bg-blue-500 text-white rounded-md text-sm hover:bg-blue-600" data-index="${index}">Carregar Dados</button>
+                            <button class="remove-client-btn px-3 py-1 bg-red-500 text-white rounded-md text-sm hover:bg-red-600" data-index="${index}">Remover</button>
+                        </div>
+                    `;
+                    clientHistoryDisplay.appendChild(clientCard);
+                });
+
+                // Adiciona listeners para os botões de carregar e remover
+                document.querySelectorAll('.load-client-btn').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        const index = parseInt(e.target.dataset.index);
+                        const clientToLoad = getClientHistory()[index];
+                        if (clientToLoad) {
+                            localStorage.setItem('contratanteData', JSON.stringify(clientToLoad));
+                            localStorage.setItem('contratanteSignature', clientToLoad.signature || '');
+                            loadContratanteData(clientToLoad);
+                            alert(`Dados de "${clientToLoad.nomeCompleto}" carregados!`);
+                            document.querySelector('[data-tab="parties"]').click(); // Volta para a aba Partes
+                        }
+                    });
+                });
+
+                document.querySelectorAll('.remove-client-btn').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        const index = parseInt(e.target.dataset.index);
+                        let history = getClientHistory();
+                        const removedClientName = history[index].nomeCompleto || 'este cliente';
+                        history.splice(index, 1);
+                        saveClientHistory(history);
+                        alert(`Dados de "${removedClientName}" removidos do histórico.`);
+                    });
+                });
+            }
+
+            displayClientHistory(); // Carrega o histórico ao iniciar
 
             // Lógica de Geração de PDF (ajustada para capturar conteúdo dinâmico do admin)
             const generatePdfBtn = document.getElementById('generate-pdf-btn');
@@ -700,17 +919,26 @@
             generatePdfBtn.addEventListener('click', async () => {
                 const editButtonHidden = editContratanteBtn.classList.contains('hidden');
                 const formHidden = contratanteForm.classList.contains('hidden');
+                const adminSettingsTab = document.getElementById('admin-settings');
+                const adminSettingsHidden = adminSettingsTab.classList.contains('hidden');
                 
+                // Esconder elementos de UI que não devem aparecer no PDF
                 editContratanteBtn.classList.add('hidden');
                 contratanteForm.classList.add('hidden');
                 document.getElementById('clear-signature-btn').classList.add('hidden');
                 document.getElementById('save-signature-btn').classList.add('hidden');
                 signatureCanvas.classList.add('hidden'); 
+                adminSettingsTab.classList.add('hidden'); // Esconde a aba de admin
 
                 contratanteDisplay.classList.remove('hidden');
 
-                tabContents.forEach(content => content.classList.remove('hidden'));
-                tabs.forEach(t => t.classList.remove('active')); 
+                // Garante que todas as abas de conteúdo do contrato (exceto admin) estejam visíveis para a captura
+                tabContents.forEach(content => {
+                    if (content.id !== 'admin-settings') {
+                        content.classList.remove('hidden');
+                    }
+                });
+                tabs.forEach(t => t.classList.remove('active')); // Remove ativo das abas
 
 
                 const { jsPDF } = window.jspdf;
@@ -728,25 +956,33 @@
 
                     const imgWidth = pdfWidth - (2 * margin);
                     const imgHeight = (canvas.height * imgWidth) / canvas.width;
-                    let heightLeft = imgHeight;
+                    let heightLeft = imgData ? (canvas.height * imgWidth) / canvas.width : 0; // Check imgData before calculating heightLeft
 
                     let position = margin;
 
-                    doc.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight);
-                    heightLeft -= pdfHeight;
-
-                    while (heightLeft >= 0) {
-                        position = heightLeft - imgHeight + margin;
-                        doc.addPage();
+                    // Only add image if imgData is not empty
+                    if (imgData) {
                         doc.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight);
                         heightLeft -= pdfHeight;
+
+                        while (heightLeft >= 0) {
+                            position = heightLeft - imgHeight + margin;
+                            doc.addPage();
+                            doc.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight);
+                            heightLeft -= pdfHeight;
+                        }
+                    } else {
+                        // Add an empty page or a message if there's no content to capture
+                        doc.text("No content to generate PDF.", margin, margin);
                     }
+
 
                     doc.save('Contrato_Servicos_Trafego_Pago.pdf');
                 } catch (error) {
                     console.error('Erro ao gerar PDF:', error);
                     alert('Houve um erro ao gerar o PDF. Por favor, tente novamente.');
                 } finally {
+                    // Restaura a visibilidade dos elementos conforme o estado anterior
                     if (editButtonHidden) {
                         editContratanteBtn.classList.add('hidden');
                     } else {
@@ -762,6 +998,14 @@
                     document.getElementById('save-signature-btn').classList.remove('hidden');
                     signatureCanvas.classList.remove('hidden'); 
 
+                    // Restaura a aba de admin para o estado anterior
+                    if (adminSettingsHidden) {
+                        adminSettingsTab.classList.add('hidden');
+                    } else {
+                        adminSettingsTab.classList.remove('hidden');
+                    }
+
+                    // Volta para a aba de assinaturas
                     tabContents.forEach(content => content.classList.add('hidden'));
                     document.getElementById('signatures').classList.remove('hidden');
                     document.querySelector('[data-tab="signatures"]').classList.add('active');
