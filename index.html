@@ -8,20 +8,15 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <!-- Chosen Palette: Warm Neutral & Soft Teal -->
-    <!-- Application Structure Plan: A tabbed-dashboard interface was chosen to deconstruct the dense legal contract into logical, user-friendly sections. This structure abandons the linear format of the original document in favor of a task-oriented approach. Users can immediately access key sections like "Financeiro" or "Obrigações" without scrolling. This improves usability by allowing parties to quickly find specific information and understand the core components of the agreement at a glance. New client input and signature features are integrated into the 'Partes' and 'Assinaturas' tabs, respectively, to maintain a cohesive flow. An 'Admin Settings' tab is added for dynamic content modification, enhancing the contract's adaptability for various niches. A new client history feature is added to the 'Admin Settings' for managing multiple client profiles. -->
-    <!-- Visualization & Content Choices: 
-        - Report Info: Parties' details -> Goal: Inform/Input -> Viz/Presentation: Styled cards with icons, now with an expandable form -> Interaction: Static display + form input, save/load from localStorage -> Justification: Clear identification, now with user input for personalization and persistence. -> Library/Method: HTML/Tailwind, Vanilla JS.
-        - Report Info: Contract clauses -> Goal: Organize -> Viz/Presentation: Tabbed interface -> Interaction: Click to switch views -> Justification: Breaks down complex information into manageable chunks, improving navigation and comprehension. -> Library/Method: Vanilla JS.
-        - Report Info: Pricing tiers -> Goal: Compare/Inform -> Viz/Presentation: Dynamically highlighted price boxes -> Interaction: Automatic highlighting based on current date (or admin override) -> Justification: Provides instant clarity on the applicable fee, making the document feel "live" and context-aware. Admin control adds flexibility. -> Library/Method: Vanilla JS.
-        - Report Info: Contract term (6 months) -> Goal: Inform/Change -> Viz/Presentation: Horizontal Bar Chart -> Interaction: Static visualization -> Justification: Offers a simple, intuitive visual representation of the contract's duration. -> Library/Method: Chart.js/Canvas.
-        - Report Info: Obligations -> Goal: Compare -> Viz/Presentation: Two-column layout -> Interaction: Static display -> Justification: Simplifies comparison of responsibilities between parties. -> Library/Method: HTML/Tailwind.
-        - Report Info: Client Signature -> Goal: Record/Formalize -> Viz/Presentation: Interactive canvas for drawing, image display -> Interaction: Draw, clear, save, load from localStorage -> Justification: Allows digital capture of signature for contract formalization, even if not legally binding in all jurisdictions. -> Library/Method: HTML Canvas, Vanilla JS.
-        - Report Info: Full Contract -> Goal: Export -> Viz/Presentation: PDF document -> Interaction: Button click to generate PDF -> Justification: Provides a tangible, shareable, and printable version of the completed contract. -> Library/Method: jsPDF, html2canvas.
-        - Report Info: Niche/Service Description -> Goal: Customize -> Viz/Presentation: Admin-only input fields -> Interaction: Text input, save/load from localStorage -> Justification: Enables quick adaptation of contract specifics for different client needs. -> Library/Method: HTML/Tailwind, Vanilla JS.
-        - Report Info: Client Data History -> Goal: Organize/Manage -> Viz/Presentation: List of client entries in admin section -> Interaction: Load selected client data, remove client data -> Justification: Allows admin to store and retrieve multiple client profiles, improving workflow efficiency. -> Library/Method: HTML/Tailwind, Vanilla JS.
+    
+    <!-- 
+      Application Structure Plan: Migrated from localStorage to Firestore for robust, real-time data persistence.
+      - Admin settings, current client data, and client history are now stored in Firestore collections.
+      - This allows for data to be saved across sessions and potentially shared/managed by multiple authenticated users.
+      - The core tabbed-dashboard structure remains, but the data layer is now asynchronous and more powerful.
+      - `onSnapshot` listeners are used to update the UI in real-time as data changes in the database.
+      - All `alert()` calls have been replaced with a custom, non-blocking notification system.
     -->
-    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -60,7 +55,7 @@
             border: 1px solid #e2e8f0;
             background-color: #ffffff;
             cursor: crosshair;
-            touch-action: none; /* Prevents scrolling on touch devices while drawing */
+            touch-action: none;
         }
         .input-group {
             margin-bottom: 1rem;
@@ -83,11 +78,69 @@
         .form-section.hidden, .admin-section.hidden {
             display: none;
         }
+        /* Custom Notification Toast */
+        #notification-toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s, transform 0.3s;
+            z-index: 1000;
+        }
+        #notification-toast.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translate(-50%, -10px);
+        }
+        #notification-toast.success { background-color: #10b981; }
+        #notification-toast.error { background-color: #ef4444; }
+        #notification-toast.info { background-color: #3b82f6; }
+
+        /* Loading Spinner */
+        #loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 0.3s;
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #14b8a6;
+            animation: spin 1s ease infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
     </style>
     <link rel="preconnect" href="https://rsms.me/">
     <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
 </head>
 <body class="bg-slate-50 text-slate-800">
+
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+    </div>
+    
+    <div id="notification-toast"></div>
 
     <div class="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8">
         
@@ -142,15 +195,14 @@
                         <div class="border border-slate-200 rounded-lg p-6">
                             <h3 class="font-bold text-xl mb-4 text-teal-700">CONTRATANTE</h3>
                             <div id="contratante-display">
-                                <p><strong>Razão Social:</strong> <span id="display-nome-completo">Deybson Robson Ortelhado</span></p>
-                                <p><strong>Nome Fantasia:</strong> <span id="display-nome-fantasia">Studio D</span></p>
-                                <p><strong>CNPJ:</strong> <span id="display-cnpj">33.998.489/0001-91</span></p>
-                                <!-- ATENÇÃO AQUI: TODO O ENDEREÇO ESTÁ DENTRO DO SPAN AGORA -->
-                                <p><strong>Endereço:</strong> <span id="display-endereco">[Preencher Endereço Completo do Studio D, incluindo número, bairro, cidade, estado] - Várzea Grande, Mato Grosso, CEP 78110-000</span></p>
-                                <p><strong>Telefone:</strong> <span id="display-telefone">(65) 99277-2500</span></p>
-                                <p><strong>E-mail:</strong> <span id="display-email">pilltwiggue@gmail.com</span></p>
+                                <p><strong>Razão Social:</strong> <span id="display-nome-completo"></span></p>
+                                <p><strong>Nome Fantasia:</strong> <span id="display-nome-fantasia"></span></p>
+                                <p><strong>CNPJ:</strong> <span id="display-cnpj"></span></p>
+                                <p><strong>Endereço:</strong> <span id="display-endereco"></span></p>
+                                <p><strong>Telefone:</strong> <span id="display-telefone"></span></p>
+                                <p><strong>E-mail:</strong> <span id="display-email"></span></p>
                                 <button id="edit-contratante-btn" class="mt-4 px-4 py-2 bg-teal-500 text-white rounded-md hover:bg-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-opacity-50">Editar Dados do Contratante</button>
-                                <button id="clear-current-contratante-btn" class="mt-4 ml-2 px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50">Limpar Dados do Contratante Atual</button>
+                                <button id="clear-current-contratante-btn" class="mt-4 ml-2 px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50">Limpar & Arquivar Contratante Atual</button>
                             </div>
 
                             <div id="contratante-form" class="form-section hidden mt-4 p-4 border border-slate-300 rounded-lg bg-slate-50">
@@ -185,23 +237,52 @@
                         </div>
                         <div class="border border-slate-200 rounded-lg p-6">
                             <h3 class="font-bold text-xl mb-4 text-teal-700">CONTRATADO</h3>
-                            <p><strong>Nome Completo:</strong> Matheus Henrique Laurindo</p>
-                            <p><strong>CPF:</strong> 100.936.909-16</p>
-                            <p><strong>Endereço:</strong> Rua Aquidabã, 199, Escola Agrícola, Blumenau, SC, 89037-740</p>
-                            <p><strong>Telefone:</strong> (47) 99217-6490</p>
-                            <p><strong>E-mail:</strong> laurindomatheus40@gmail.com</p>
+                            <div id="contratado-display">
+                                <p><strong>Nome Completo:</strong> <span id="display-nome-completo-contratado"></span></p>
+                                <p><strong>CPF/CNPJ:</strong> <span id="display-cpf-contratado"></span></p>
+                                <p><strong>Endereço:</strong> <span id="display-endereco-contratado"></span></p>
+                                <p><strong>Telefone:</strong> <span id="display-telefone-contratado"></span></p>
+                                <p><strong>E-mail:</strong> <span id="display-email-contratado"></span></p>
+                                <button id="edit-contratado-btn" class="mt-4 px-4 py-2 bg-teal-500 text-white rounded-md hover:bg-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-opacity-50">Editar Dados do Contratado</button>
+                                <button id="clear-current-contratado-btn" class="mt-4 ml-2 px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50">Limpar dados do contrato</button>
+                            </div>
+                             <div id="contratado-form" class="form-section hidden mt-4 p-4 border border-slate-300 rounded-lg bg-slate-50">
+                                <h4 class="font-bold text-lg mb-4 text-teal-700">Preencher Dados do Contratado</h4>
+                                <div class="input-group">
+                                    <label for="input-nome-completo-contratado">Nome Completo:</label>
+                                    <input type="text" id="input-nome-completo-contratado" placeholder="Nome Completo" autocomplete="off">
+                                </div>
+                                <div class="input-group">
+                                    <label for="input-cpf-contratado">CPF/CNPJ:</label>
+                                    <input type="text" id="input-cpf-contratado" placeholder="CPF/CNPJ" autocomplete="off">
+                                </div>
+                                <div class="input-group">
+                                    <label for="input-endereco-contratado">Endereço:</label>
+                                    <input type="text" id="input-endereco-contratado" placeholder="Endereço Completo" autocomplete="off">
+                                </div>
+                                <div class="input-group">
+                                    <label for="input-telefone-contratado">Telefone:</label>
+                                    <input type="text" id="input-telefone-contratado" placeholder="Telefone" autocomplete="off">
+                                </div>
+                                <div class="input-group">
+                                    <label for="input-email-contratado">E-mail:</label>
+                                    <input type="email" id="input-email-contratado" placeholder="E-mail" autocomplete="off">
+                                </div>
+                                <button id="save-contratado-btn" class="mt-4 px-4 py-2 bg-teal-500 text-white rounded-md hover:bg-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-opacity-50">Salvar Dados</button>
+                                <button id="cancel-edit-contratado-btn" class="mt-4 ml-2 px-4 py-2 bg-slate-300 text-slate-800 rounded-md hover:bg-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-opacity-50">Cancelar</button>
+                            </div>
                         </div>
                     </div>
                 </section>
 
                 <!-- Serviços -->
                 <section id="services" class="tab-content hidden prose max-w-none">
-                     <p class="text-slate-600 mb-6">Esta seção detalha o escopo dos serviços a serem prestados. Define claramente o que está incluído no objeto do contrato, como a gestão das campanhas, e o que não está, como a otimização de landing pages, que pode ser contratada separadamente.</p>
+                       <p class="text-slate-600 mb-6">Esta seção detalha o escopo dos serviços a serem prestados. Define claramente o que está incluído no objeto do contrato, como a gestão das campanhas, e o que não está, como a otimização de landing pages, que pode ser contratada separadamente.</p>
                     <h2 class="text-teal-700">CLÁUSULA PRIMEIRA – DO OBJETO DO CONTRATO</h2>
-                    <p id="clausula1-1-main" class="text-slate-800">1.1. O presente Contrato tem como objeto a prestação de serviços de Gestão de Tráfego Pago pelo CONTRATADO para o CONTRATANTE, visando a otimização de campanhas publicitárias online nas plataformas Facebook/Instagram Ads, com os seguintes objetivos principais:</p>
+                    <p id="clausula1-1-main" class="text-slate-800"></p>
                     <ul>
-                        <li id="clausula1-1-a" class="text-slate-800">a) Aumento da visualização do perfil do Studio D no Instagram;</li>
-                        <li id="clausula1-1-b" class="text-slate-800">b) Geração de Leads via WhatsApp para agendamento de serviços de salão de beleza e harmonização facial.</li>
+                        <li id="clausula1-1-a" class="text-slate-800"></li>
+                        <li id="clausula1-1-b" class="text-slate-800"></li>
                     </ul>
                     <p class="text-slate-800">1.2. A gestão do tráfego pago incluirá a criação, configuração, monitoramento e otimização das campanhas nas plataformas mencionadas.</p>
                     <p class="text-slate-800">1.3. A criação de criativos (vídeos e outras peças) será realizada com colaboração mútua. A criação exclusiva de vídeos pelo CONTRATADO será mediante acordo prévio.</p>
@@ -305,12 +386,12 @@
                 <section id="signatures" class="tab-content hidden prose max-w-none">
                     <p class="text-slate-600 mb-6">Para formalizar o acordo, as partes e duas testemunhas devem assinar o instrumento. Utilize o campo abaixo para desenhar sua assinatura digitalmente. Lembre-se que esta é uma representação visual da assinatura para este aplicativo; a validade legal depende das leis locais.</p>
                     <p>E, por estarem assim justas e contratadas, as partes assinam o presente Contrato em 2 (duas) vias de igual teor e forma, na presença das duas testemunhas abaixo.</p>
-                    <p>Blumenau, Santa Catarina, 27 de junho de 2025.</p>
+                    <p id="signature-date-location" class="font-semibold"></p>
                     
                     <div class="mt-12 grid grid-cols-1 md:grid-cols-2 gap-12 text-center">
                         <div>
-                            <p class="border-t border-slate-400 pt-2" id="contratante-assinatura-nome">Deybson Robson Ortelhado</p>
-                            <p class="text-sm text-slate-500">CONTRATANTE (<span id="contratante-assinatura-cnpj">CNPJ: 33.998.489/0001-91</span>)</p>
+                            <p class="border-t border-slate-400 pt-2" id="contratante-assinatura-nome"></p>
+                            <p class="text-sm text-slate-500">CONTRATANTE (CNPJ: <span id="contratante-assinatura-cnpj"></span>)</p>
                             <div class="mt-2" id="contratante-assinatura-display">
                                 <!-- Assinatura do Contratante será exibida aqui -->
                             </div>
@@ -324,8 +405,8 @@
                             </div>
                         </div>
                         <div>
-                            <p class="border-t border-slate-400 pt-2">Matheus Henrique Laurindo</p>
-                            <p class="text-sm text-slate-500">CONTRATADO (CPF: 100.936.909-16)</p>
+                            <p class="border-t border-slate-400 pt-2" id="contratado-assinatura-nome"></p>
+                            <p class="text-sm text-slate-500">CONTRATADO (CPF/CNPJ: <span id="contratado-assinatura-cpf"></span>)</p>
                         </div>
                     </div>
 
@@ -348,670 +429,666 @@
                 <!-- Configurações do Admin -->
                 <section id="admin-settings" class="tab-content hidden admin-section">
                     <div class="prose max-w-none">
-                        <p class="text-slate-600 mb-6">Esta seção é para configurações do administrador. As alterações aqui afetam o conteúdo do contrato exibido e gerado em PDF para todos os clientes. As informações são salvas automaticamente.</p>
+                        <p class="text-slate-600 mb-6">Esta seção é para configurações do administrador. As alterações aqui afetam o conteúdo do contrato exibido e gerado em PDF para todos os clientes. As informações são salvas automaticamente no banco de dados.</p>
                     </div>
+                    
+                    <!-- Settings and Save Button Container -->
+                    <div class="mb-8">
+                        <div class="p-4 border border-slate-300 rounded-lg bg-slate-50">
+                            <h4 class="font-bold text-lg mb-4 text-teal-700">Configurações de Preço</h4>
+                            <div class="input-group">
+                                <label for="admin-price-1500">Valor do Contrato (até 30/06/2025):</label>
+                                <input type="number" id="admin-price-1500" placeholder="1500.00" step="0.01">
+                            </div>
+                            <div class="input-group">
+                                <label for="admin-price-1900">Valor do Contrato (após 30/06/2025):</label>
+                                <input type="number" id="admin-price-1900" placeholder="1900.00" step="0.01">
+                            </div>
+                        </div>
+
+                        <div class="mt-6 p-4 border border-slate-300 rounded-lg bg-slate-50">
+                            <h4 class="font-bold text-lg mb-4 text-teal-700">Configurações de Nícho e Serviço</h4>
+                            <div class="input-group">
+                                <label for="admin-main-objective-text">Objeto Principal do Contrato (Parágrafo inicial):</label>
+                                <textarea id="admin-main-objective-text" rows="3" placeholder="O presente Contrato tem como objeto a prestação de serviços de Gestão de Tráfego Pago pelo CONTRATADO para o CONTRATANTE, visando..."></textarea>
+                            </div>
+                            <div class="input-group">
+                                <label for="admin-objective-a">Objetivo Específico (a):</label>
+                                <input type="text" id="admin-objective-a" placeholder="Aumento da visualização do perfil...">
+                            </div>
+                            <div class="input-group">
+                                <label for="admin-objective-b">Objetivo Específico (b):</label>
+                                <input type="text" id="admin-objective-b" placeholder="Geração de Leads via WhatsApp para...">
+                            </div>
+                        </div>
+
+                        <div class="mt-6 p-4 border border-slate-300 rounded-lg bg-slate-50">
+                            <h4 class="font-bold text-lg mb-4 text-teal-700">Configurações da Legenda do Cabeçalho</h4>
+                            <div class="input-group">
+                                <label for="admin-header-contratante-name">Nome da Empresa Contratante (na legenda):</label>
+                                <input type="text" id="admin-header-contratante-name" placeholder="Studio D">
+                            </div>
+                            <div class="input-group">
+                                <label for="admin-header-contratado-name">Nome do Contratado (na legenda):</label>
+                                <input type="text" id="admin-header-contratado-name" placeholder="Matheus Henrique Laurindo">
+                            </div>
+                        </div>
+
+                        <button id="save-admin-settings-btn" class="mt-6 px-4 py-2 bg-teal-500 text-white rounded-md hover:bg-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-opacity-50">Salvar Configurações Admin</button>
+                    </div>
+
+                    <!-- Client History Container -->
                     <div class="p-4 border border-slate-300 rounded-lg bg-slate-50">
-                        <h4 class="font-bold text-lg mb-4 text-teal-700">Configurações de Preço</h4>
-                        <div class="input-group">
-                            <label for="admin-price-1500">Valor do Contrato (até 30/06/2025):</label>
-                            <input type="number" id="admin-price-1500" placeholder="1500.00" step="0.01">
-                        </div>
-                        <div class="input-group">
-                            <label for="admin-price-1900">Valor do Contrato (após 30/06/2025):</label>
-                            <input type="number" id="admin-price-1900" placeholder="1900.00" step="0.01">
-                        </div>
-                    </div>
-
-                    <div class="mt-6 p-4 border border-slate-300 rounded-lg bg-slate-50">
-                        <h4 class="font-bold text-lg mb-4 text-teal-700">Configurações de Nícho e Serviço</h4>
-                        <div class="input-group">
-                            <label for="admin-main-objective-text">Objeto Principal do Contrato (Parágrafo inicial):</label>
-                            <textarea id="admin-main-objective-text" rows="3" placeholder="O presente Contrato tem como objeto a prestação de serviços de Gestão de Tráfego Pago pelo CONTRATADO para o CONTRATANTE, visando..."></textarea>
-                        </div>
-                        <div class="input-group">
-                            <label for="admin-objective-a">Objetivo Específico (a):</label>
-                            <input type="text" id="admin-objective-a" placeholder="Aumento da visualização do perfil...">
-                        </div>
-                        <div class="input-group">
-                            <label for="admin-objective-b">Objetivo Específico (b):</label>
-                            <input type="text" id="admin-objective-b" placeholder="Geração de Leads via WhatsApp para...">
-                        </div>
-                    </div>
-
-                    <div class="mt-6 p-4 border border-slate-300 rounded-lg bg-slate-50">
-                        <h4 class="font-bold text-lg mb-4 text-teal-700">Configurações da Legenda do Cabeçalho</h4>
-                        <div class="input-group">
-                            <label for="admin-header-contratante-name">Nome da Empresa Contratante (na legenda):</label>
-                            <input type="text" id="admin-header-contratante-name" placeholder="Studio D">
-                        </div>
-                        <div class="input-group">
-                            <label for="admin-header-contratado-name">Nome do Contratado (na legenda):</label>
-                            <input type="text" id="admin-header-contratado-name" placeholder="Matheus Henrique Laurindo">
-                        </div>
-                    </div>
-
-                    <button id="save-admin-settings-btn" class="mt-6 px-4 py-2 bg-teal-500 text-white rounded-md hover:bg-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-opacity-50">Salvar Configurações Admin</button>
-
-                    <div class="mt-8 p-4 border border-slate-300 rounded-lg bg-slate-50">
-                        <h4 class="font-bold text-lg mb-4 text-teal-700">Histórico de Clientes Anteriores</h4>
+                        <h4 class="font-bold text-lg mb-4 text-teal-700">Histórico de Clientes (Arquivados)</h4>
                         <div id="client-history-display" class="space-y-4">
                             <p class="text-slate-500">Nenhum cliente no histórico.</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Contractor History Container -->
+                    <div class="mt-6 p-4 border border-slate-300 rounded-lg bg-slate-50">
+                        <h4 class="font-bold text-lg mb-4 text-teal-700">Histórico de Contratados</h4>
+                        <div id="contractor-history-display" class="space-y-4">
+                            <p class="text-slate-500">Nenhum contratado no histórico.</p>
                         </div>
                     </div>
                 </section>
             </main>
         </div>
     </div>
+    
+    <script type="module">
+        // Firebase Imports
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, deleteDoc, onSnapshot, collection, query, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
+        // --- Global Variables & Firebase Initialization ---
+        let db, auth, userId, appId;
+        let unsubscribeAdminSettings = null;
+        let unsubscribeCurrentClient = null;
+        let unsubscribeContratado = null;
+        let unsubscribeClientHistory = null;
+        let unsubscribeContractorHistory = null;
+        
+        const loadingOverlay = document.getElementById('loading-overlay');
+        let contratanteAssinaturaDisplay;
+
+        // --- Custom Notification System ---
+        const notificationToast = document.getElementById('notification-toast');
+        function showNotification(message, type = 'info', duration = 3000) {
+            notificationToast.textContent = message;
+            notificationToast.className = `show ${type}`;
+            setTimeout(() => {
+                notificationToast.className = notificationToast.className.replace('show', '');
+            }, duration);
+        }
+
+        // Function to show/hide loading spinner
+        function showLoading(show) {
+            if(show) {
+                loadingOverlay.style.display = 'flex';
+                loadingOverlay.style.opacity = '1';
+            } else {
+                loadingOverlay.style.opacity = '0';
+                setTimeout(() => {
+                    loadingOverlay.style.display = 'none';
+                }, 300);
+            }
+        }
+        
+        showLoading(true);
+
+        async function initializeFirebase() {
+             try {
+                const firebaseConfig = typeof __firebase_config !== 'undefined' 
+                    ? JSON.parse(__firebase_config) 
+                    : { apiKey: "DEMO_KEY", authDomain: "DEMO.firebaseapp.com", projectId: "DEMO" };
+                appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        console.log("User is signed in with UID:", userId);
+                        setupAllListeners();
+                    } else {
+                        console.log("No user signed in, attempting auth...");
+                        // ENHANCED AUTH FLOW
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            try {
+                                await signInWithCustomToken(auth, __initial_auth_token);
+                            } catch (error) {
+                                // The environment's token may be invalid ('auth/invalid-claims'). This is an expected issue.
+                                // We will log a less alarming message and always fall back to anonymous sign-in.
+                                if (error.code !== 'auth/invalid-claims') {
+                                     console.error("An unexpected error occurred during custom token sign-in:", error);
+                                }
+                                console.log("Custom token authentication failed. Falling back to anonymous sign-in.");
+                                await signInAnonymously(auth).catch(anonError => {
+                                    console.error("Critical: Fallback anonymous sign-in also failed:", anonError);
+                                    showNotification("Falha crítica na autenticação.", "error");
+                                    showLoading(false);
+                                });
+                            }
+                        } else {
+                            // No custom token, proceed with anonymous sign-in
+                            await signInAnonymously(auth).catch(anonError => {
+                                console.error("Anonymous sign-in failed:", anonError);
+                                showNotification("Falha na autenticação anónima.", "error");
+                                showLoading(false);
+                            });
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error("Firebase initialization failed:", error);
+                showNotification("Erro ao conectar com o banco de dados.", "error");
+                showLoading(false);
+            }
+        }
+        
+        function setupAllListeners() {
+            if (unsubscribeAdminSettings) unsubscribeAdminSettings();
+            if (unsubscribeCurrentClient) unsubscribeCurrentClient();
+            if (unsubscribeContratado) unsubscribeContratado();
+            if (unsubscribeClientHistory) unsubscribeClientHistory();
+            if (unsubscribeContractorHistory) unsubscribeContractorHistory();
+
+            listenForAdminSettings();
+            listenForCurrentClient();
+            listenForContratadoData();
+            listenForClientHistory();
+            listenForContractorHistory();
+        }
+
+        function displaySignature(dataURL) {
+            if (!contratanteAssinaturaDisplay) {
+                contratanteAssinaturaDisplay = document.getElementById('contratante-assinatura-display');
+            }
+            contratanteAssinaturaDisplay.innerHTML = '';
+            if (dataURL) {
+                const img = document.createElement('img');
+                img.src = dataURL;
+                img.alt = 'Assinatura do Contratante';
+                img.classList.add('w-full', 'max-w-xs', 'h-auto', 'mx-auto', 'mt-2', 'border', 'border-slate-200', 'rounded-md');
+                contratanteAssinaturaDisplay.appendChild(img);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await initializeFirebase();
+            
+            document.getElementById('signature-date-location').textContent = `Blumenau, Santa Catarina, ${new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}.`;
+
+            contratanteAssinaturaDisplay = document.getElementById('contratante-assinatura-display');
+
+            // --- TAB NAVIGATION ---
             const tabs = document.querySelectorAll('.tab-button');
             const tabContents = document.querySelectorAll('.tab-content');
-
-            // Lógica de Assinatura Digital: Declaração e inicialização movidas para o início do DOMContentLoaded
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const target = tab.getAttribute('data-tab');
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    tabContents.forEach(content => {
+                        content.classList.toggle('hidden', content.id !== target);
+                    });
+                });
+            });
+            
+            // --- SIGNATURE CANVAS LOGIC ---
             const signatureCanvas = document.getElementById('signature-canvas');
             const signatureCtx = signatureCanvas.getContext('2d');
             const clearSignatureBtn = document.getElementById('clear-signature-btn');
             const saveSignatureBtn = document.getElementById('save-signature-btn');
-            const contratanteAssinaturaDisplay = document.getElementById('contratante-assinatura-display');
-
             let drawing = false;
 
-            function startDrawing(e) {
-                drawing = true;
-                draw(e);
-            }
-
-            function endDrawing() {
-                drawing = false;
-                signatureCtx.beginPath();
-            }
-
-            function draw(e) {
-                if (!drawing) return;
-
-                e.preventDefault(); 
-
+            const getCoords = (e) => {
                 const rect = signatureCanvas.getBoundingClientRect();
                 const clientX = e.touches ? e.touches[0].clientX : e.clientX;
                 const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                return { x: clientX - rect.left, y: clientY - rect.top };
+            }
 
-                const x = clientX - rect.left;
-                const y = clientY - rect.top;
+            const startDrawing = (e) => { e.preventDefault(); drawing = true; const { x, y } = getCoords(e); signatureCtx.moveTo(x, y); };
+            const endDrawing = () => { drawing = false; signatureCtx.beginPath(); };
 
+            const draw = (e) => {
+                if (!drawing) return;
+                e.preventDefault();
+                const { x, y } = getCoords(e);
                 signatureCtx.lineWidth = 2;
                 signatureCtx.lineCap = 'round';
                 signatureCtx.strokeStyle = '#000000';
-
                 signatureCtx.lineTo(x, y);
                 signatureCtx.stroke();
                 signatureCtx.beginPath();
                 signatureCtx.moveTo(x, y);
-            }
+            };
 
             signatureCanvas.addEventListener('mousedown', startDrawing);
             signatureCanvas.addEventListener('mouseup', endDrawing);
             signatureCanvas.addEventListener('mousemove', draw);
-            signatureCanvas.addEventListener('mouseout', endDrawing); 
-
+            signatureCanvas.addEventListener('mouseout', endDrawing);
             signatureCanvas.addEventListener('touchstart', startDrawing);
             signatureCanvas.addEventListener('touchend', endDrawing);
             signatureCanvas.addEventListener('touchmove', draw);
 
             clearSignatureBtn.addEventListener('click', () => {
                 signatureCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
-                contratanteAssinaturaDisplay.innerHTML = ''; 
-                
-                const currentContratanteData = JSON.parse(localStorage.getItem('contratanteData')) || {};
-                currentContratanteData.signature = ''; // Remove a assinatura do objeto de dados
-                localStorage.setItem('contratanteData', JSON.stringify(currentContratanteData));
-                addClientToHistory(currentContratanteData); // Atualiza o histórico sem a assinatura
+                contratanteAssinaturaDisplay.innerHTML = '';
             });
 
-            saveSignatureBtn.addEventListener('click', () => {
+            saveSignatureBtn.addEventListener('click', async () => {
+                if (!userId) { showNotification("Aguarde a autenticação...", "info"); return; }
                 const dataURL = signatureCanvas.toDataURL('image/png');
-                localStorage.setItem('contratanteSignature', dataURL);
                 displaySignature(dataURL);
-                // Atualiza também os dados do contratante ativo com a nova assinatura
-                const currentContratanteData = JSON.parse(localStorage.getItem('contratanteData')) || {};
-                currentContratanteData.signature = dataURL;
-                localStorage.setItem('contratanteData', JSON.stringify(currentContratanteData));
-                addClientToHistory(currentContratanteData); // Atualiza o histórico com a nova assinatura
+                
+                const currentClientDocRef = doc(db, `artifacts/${appId}/users/${userId}/currentClient/active`);
+                try {
+                    await setDoc(currentClientDocRef, { signature: dataURL }, { merge: true });
+                    showNotification("Assinatura salva com sucesso.", "success");
+                } catch (error) {
+                    console.error("Error saving signature:", error);
+                    showNotification("Erro ao salvar assinatura.", "error");
+                }
             });
 
-            function displaySignature(dataURL) {
-                contratanteAssinaturaDisplay.innerHTML = ''; 
-                if (dataURL) {
-                    const img = document.createElement('img');
-                    img.src = dataURL;
-                    img.alt = 'Assinatura do Contratante';
-                    img.classList.add('w-full', 'max-w-xs', 'h-auto', 'mx-auto', 'mt-2', 'border', 'border-slate-200', 'rounded-md');
-                    contratanteAssinaturaDisplay.appendChild(img);
-                }
-            }
-
-            function loadSignature() {
-                const savedSignature = localStorage.getItem('contratanteSignature');
-                if (savedSignature) {
-                    const img = new Image();
-                    img.onload = () => {
-                        signatureCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
-                        signatureCtx.drawImage(img, 0, 0, signatureCanvas.width, signatureCanvas.height);
-                        displaySignature(savedSignature);
-                    };
-                    img.src = savedSignature;
-                }
-            }
-            
-            // Moved loadSignature call to after signatureCtx is initialized
-            loadSignature(); 
-
-            tabs.forEach(tab => {
-                tab.addEventListener('click', () => {
-                    const target = tab.getAttribute('data-tab');
-
-                    tabs.forEach(t => t.classList.remove('active'));
-                    tab.classList.add('active');
-
-                    tabContents.forEach(content => {
-                        if (content.id === target) {
-                            content.classList.remove('hidden');
-                        } else {
-                            content.classList.add('hidden');
-                        }
-                    });
-                });
-            });
-
-            // Elementos de exibição e input do admin
-            const adminPrice1500Input = document.getElementById('admin-price-1500');
-            const adminPrice1900Input = document.getElementById('admin-price-1900');
-            const adminMainObjectiveTextInput = document.getElementById('admin-main-objective-text');
-            const adminObjectiveAInput = document.getElementById('admin-objective-a');
-            const adminObjectiveBInput = document.getElementById('admin-objective-b');
-            const adminHeaderContratanteName = document.getElementById('admin-header-contratante-name');
-            const adminHeaderContratadoName = document.getElementById('admin-header-contratado-name');
+            // --- ADMIN SETTINGS ---
             const saveAdminSettingsBtn = document.getElementById('save-admin-settings-btn');
-
-            // Elementos de exibição do contrato (que o admin modifica)
-            const overviewMainObjective = document.getElementById('overview-main-objective');
-            const clausula1_1Main = document.getElementById('clausula1-1-main');
-            const clausula1_1a = document.getElementById('clausula1-1-a');
-            const clausula1_1b = document.getElementById('clausula1-1-b');
-            const displayPrice1500 = document.getElementById('display-price-1500');
-            const displayPrice1900 = document.getElementById('display-price-1900');
-            const overviewPrice = document.getElementById('overview-price');
-            const headerSubtitle = document.getElementById('header-subtitle');
-
-
-            // Funções para carregar e salvar configurações do admin
-            function loadAdminSettings() {
-                const settings = JSON.parse(localStorage.getItem('adminSettings')) || {};
-
-                adminPrice1500Input.value = settings.price1500 || 1500.00;
-                adminPrice1900Input.value = settings.price1900 || 1900.00;
-                adminMainObjectiveTextInput.value = settings.mainObjectiveText || 'O presente Contrato tem como objeto a prestação de serviços de Gestão de Tráfego Pago pelo CONTRATADO para o CONTRATANTE, visando a otimização de campanhas publicitárias online nas plataformas Facebook/Instagram Ads, com os seguintes objetivos principais:';
-                adminObjectiveAInput.value = settings.objectiveA || 'Aumento da visualização do perfil do Studio D no Instagram;';
-                adminObjectiveBInput.value = settings.objectiveB || 'Geração de Leads via WhatsApp para agendamento de serviços de salão de beleza e harmonização facial.';
-                adminHeaderContratanteName.value = settings.headerContratanteName || 'Studio D';
-                adminHeaderContratadoName.value = settings.headerContratadoName || 'Matheus Henrique Laurindo';
-            }
-
-            function applyAdminSettingsToContract() {
-                const settings = JSON.parse(localStorage.getItem('adminSettings')) || {};
-
-                const price1500Value = settings.price1500 || 1500.00;
-                const price1900Value = settings.price1900 || 1900.00;
-                const mainObjectiveText = settings.mainObjectiveText || 'Gestão de Tráfego Pago (Facebook/Instagram Ads) para aumentar a visualização do perfil e gerar leads via WhatsApp.';
-                const objectiveA = settings.objectiveA || 'Aumento da visualização do perfil do Studio D no Instagram;';
-                const objectiveB = settings.objectiveB || 'Geração de Leads via WhatsApp para agendamento de serviços de salão de beleza e harmonização facial.';
-                const headerContratanteName = settings.headerContratanteName || 'Studio D';
-                const headerContratadoName = settings.headerContratadoName || 'Matheus Henrique Laurindo';
-
-
-                // Atualiza elementos na seção "Visão Geral"
-                overviewMainObjective.textContent = mainObjectiveText;
-                
-                // Atualiza elementos na seção "Financeiro"
-                displayPrice1500.textContent = `R$ ${price1500Value.toFixed(2).replace('.', ',')}`;
-                displayPrice1900.textContent = `R$ ${price1900Value.toFixed(2).replace('.', ',')}`;
-
-                // Lógica de destaque de preço (usa os valores do admin)
-                const deadline = new Date('2025-06-30T23:59:59-03:00');
-                const now = new Date();
-                const price1500Box = document.getElementById('price-1500');
-                const price1900Box = document.getElementById('price-1900');
-                
-                let currentDisplayedPrice = price1900Value;
-
-                if (now <= deadline) {
-                    price1500Box.classList.add('active');
-                    price1900Box.classList.remove('active');
-                    price1900Box.classList.add('inactive');
-                    price1500Box.classList.remove('inactive');
-                    currentDisplayedPrice = price1500Value;
-                } else {
-                    price1900Box.classList.add('active');
-                    price1500Box.classList.remove('active');
-                    price1500Box.classList.add('inactive');
-                    price1900Box.classList.remove('inactive');
-                }
-                overviewPrice.textContent = `R$ ${currentDisplayedPrice.toFixed(2).replace('.', ',')}`;
-
-
-                // Atualiza elementos na seção "Serviços"
-                clausula1_1Main.textContent = `1.1. ${mainObjectiveText}`;
-                clausula1_1a.textContent = `a) ${objectiveA}`;
-                clausula1_1b.textContent = `b) ${objectiveB}`;
-
-                // Atualiza o subtítulo do cabeçalho
-                headerSubtitle.textContent = `${headerContratanteName} & ${headerContratadoName}`;
-            }
-
-            saveAdminSettingsBtn.addEventListener('click', () => {
+            saveAdminSettingsBtn.addEventListener('click', async () => {
+                if (!userId) { showNotification("Aguarde a autenticação...", "info"); return; }
                 const settings = {
-                    price1500: parseFloat(adminPrice1500Input.value),
-                    price1900: parseFloat(adminPrice1900Input.value),
-                    mainObjectiveText: adminMainObjectiveTextInput.value,
-                    objectiveA: adminObjectiveAInput.value,
-                    objectiveB: adminObjectiveBInput.value,
-                    headerContratanteName: adminHeaderContratanteName.value,
-                    headerContratadoName: adminHeaderContratadoName.value
+                    price1500: parseFloat(document.getElementById('admin-price-1500').value) || 1500,
+                    price1900: parseFloat(document.getElementById('admin-price-1900').value) || 1900,
+                    mainObjectiveText: document.getElementById('admin-main-objective-text').value,
+                    objectiveA: document.getElementById('admin-objective-a').value,
+                    objectiveB: document.getElementById('admin-objective-b').value,
+                    headerContratanteName: document.getElementById('admin-header-contratante-name').value,
+                    headerContratadoName: document.getElementById('admin-header-contratado-name').value
                 };
-                localStorage.setItem('adminSettings', JSON.stringify(settings));
-                applyAdminSettingsToContract(); // Aplica as novas configurações imediatamente
-                alert('Configurações do Admin salvas com sucesso!');
-            });
-
-            // Carrega e aplica as configurações do admin ao iniciar
-            loadAdminSettings();
-            applyAdminSettingsToContract();
-            
-            // Gráfico de prazo (permanece o mesmo)
-            const termCtx = document.getElementById('termChart').getContext('2d');
-            new Chart(termCtx, {
-                type: 'bar',
-                data: {
-                    labels: ['Prazo Inicial (Meses)'],
-                    datasets: [{
-                        label: 'Duração',
-                        data: [6],
-                        backgroundColor: ['rgba(20, 184, 166, 0.6)'],
-                        borderColor: ['rgba(13, 148, 136, 1)'],
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    indexAxis: 'y',
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: false
-                        }
-                    },
-                    scales: {
-                        x: {
-                            beginAtZero: true,
-                            max: 7,
-                            ticks: {
-                                stepSize: 1
-                            }
-                        },
-                         y: {
-                            grid: {
-                                display: false
-                            }
-                        }
-                    }
+                
+                const adminSettingsRef = doc(db, `artifacts/${appId}/public/data/settings/admin`);
+                try {
+                    await setDoc(adminSettingsRef, settings, { merge: true });
+                    showNotification("Configurações do Admin salvas com sucesso!", "success");
+                } catch (error) {
+                    console.error("Error saving admin settings:", error);
+                    showNotification("Erro ao salvar configurações do Admin.", "error");
                 }
             });
-
-            // Lógica do formulário do Contratante (existente)
+            
+            // --- CONTRATANTE FORM ---
             const contratanteDisplay = document.getElementById('contratante-display');
             const contratanteForm = document.getElementById('contratante-form');
             const editContratanteBtn = document.getElementById('edit-contratante-btn');
             const saveContratanteBtn = document.getElementById('save-contratante-btn');
             const cancelEditBtn = document.getElementById('cancel-edit-btn');
-            const clearCurrentContratanteBtn = document.getElementById('clear-current-contratante-btn'); 
+            const clearCurrentContratanteBtn = document.getElementById('clear-current-contratante-btn');
 
-            const inputNomeCompleto = document.getElementById('input-nome-completo');
-            const inputNomeFantasia = document.getElementById('input-nome-fantasia');
-            const inputCnpj = document.getElementById('input-cnpj');
-            const inputEndereco = document.getElementById('input-endereco');
-            const inputTelefone = document.getElementById('input-telefone');
-            const inputEmail = document.getElementById('input-email');
-
-            const displayNomeCompleto = document.getElementById('display-nome-completo');
-            const displayNomeFantasia = document.getElementById('display-nome-fantasia');
-            const displayCnpj = document.getElementById('display-cnpj');
-            const displayEndereco = document.getElementById('display-endereco');
-            const displayTelefone = document.getElementById('display-telefone');
-            const displayEmail = document.getElementById('display-email');
-
-            const contratanteAssinaturaNome = document.getElementById('contratante-assinatura-nome');
-            const contratanteAssinaturaCnpj = document.getElementById('contratante-assinatura-cnpj');
-
-            const clientHistoryDisplay = document.getElementById('client-history-display');
-
-            function loadContratanteData(dataToLoad = null) { // Make dataToLoad explicitly nullable
-                const defaultContratanteValues = { // Default values if nothing is stored or passed
-                    nomeCompleto: 'Deybson Robson Ortelhado',
-                    nomeFantasia: 'Studio D',
-                    cnpj: '33.998.489/0001-91',
-                    endereco: '[Preencher Endereço Completo do Studio D, incluindo número, bairro, cidade, estado] - Várzea Grande, Mato Grosso, CEP 78110-000',
-                    telefone: '(65) 99277-2500',
-                    email: 'pilltwiggue@gmail.com'
-                };
-
-                let dataToUse = {};
-                // If specific data is passed (e.g., from clear button or history load), use it
-                if (dataToLoad !== null) {
-                    dataToUse = dataToLoad;
-                } else {
-                    // Otherwise, try to load from local storage
-                    const storedData = JSON.parse(localStorage.getItem('contratanteData'));
-                    if (storedData) {
-                        dataToUse = storedData;
-                    } else {
-                        // If no stored data, use initial default values
-                        dataToUse = defaultContratanteValues;
-                    }
-                }
-
-                // Display elements - set to empty string if the property is not defined, otherwise use the data
-                displayNomeCompleto.textContent = dataToUse.nomeCompleto || ''; 
-                displayNomeFantasia.textContent = dataToUse.nomeFantasia || '';
-                displayCnpj.textContent = dataToUse.cnpj || '';
-                displayEndereco.textContent = dataToUse.endereco || ''; 
-                displayTelefone.textContent = dataToUse.telefone || '';
-                displayEmail.textContent = dataToUse.email || '';
-
-                // Input elements - set to empty string if the property is not defined, otherwise use the data
-                inputNomeCompleto.value = dataToUse.nomeCompleto || '';
-                inputNomeFantasia.value = dataToUse.nomeFantasia || ''; // Corrected typo here from dataToUs
-                inputCnpj.value = dataToUse.cnpj || '';
-                inputEndereco.value = dataToUse.endereco || '';
-                inputTelefone.value = dataToUse.telefone || '';
-                inputEmail.value = dataToUse.email || '';
-
-                // Signature section text - set to empty string if the property is not defined
-                contratanteAssinaturaNome.textContent = dataToUse.nomeCompleto || '';
-                contratanteAssinaturaCnpj.textContent = 'CNPJ: ' + (dataToUse.cnpj || '');
-                
-                // Signature canvas and display
-                const signatureData = dataToUse.signature || ''; // Use signature from dataToUse or empty
-                if (signatureData) {
-                    displaySignature(signatureData);
-                    const img = new Image();
-                    img.onload = () => {
-                        signatureCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
-                        signatureCtx.drawImage(img, 0, 0, signatureCanvas.width, signatureCanvas.height);
-                    };
-                    img.src = signatureData;
-                } else {
-                    signatureCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
-                    contratanteAssinaturaDisplay.innerHTML = '';
-                }
-            }
-
-            editContratanteBtn.addEventListener('click', () => {
-                contratanteDisplay.classList.add('hidden');
-                contratanteForm.classList.remove('hidden');
-            });
-
-            saveContratanteBtn.addEventListener('click', () => {
+            editContratanteBtn.addEventListener('click', () => { contratanteDisplay.classList.add('hidden'); contratanteForm.classList.remove('hidden'); });
+            cancelEditBtn.addEventListener('click', () => { contratanteForm.classList.add('hidden'); contratanteDisplay.classList.remove('hidden'); });
+            
+            saveContratanteBtn.addEventListener('click', async () => {
+                if (!userId) { showNotification("Aguarde a autenticação...", "info"); return; }
                 const data = {
-                    nomeCompleto: inputNomeCompleto.value,
-                    nomeFantasia: inputNomeFantasia.value,
-                    cnpj: inputCnpj.value,
-                    endereco: inputEndereco.value,
-                    telefone: inputTelefone.value,
-                    email: inputEmail.value,
-                    signature: localStorage.getItem('contratanteSignature') || '' 
+                    nomeCompleto: document.getElementById('input-nome-completo').value,
+                    nomeFantasia: document.getElementById('input-nome-fantasia').value,
+                    cnpj: document.getElementById('input-cnpj').value,
+                    endereco: document.getElementById('input-endereco').value,
+                    telefone: document.getElementById('input-telefone').value,
+                    email: document.getElementById('input-email').value,
                 };
-                localStorage.setItem('contratanteData', JSON.stringify(data));
-                addClientToHistory(data); 
-                loadContratanteData(data); 
-                contratanteForm.classList.add('hidden');
-                contratanteDisplay.classList.remove('hidden');
+
+                const currentClientRef = doc(db, `artifacts/${appId}/users/${userId}/currentClient/active`);
+                try {
+                    await setDoc(currentClientRef, data, { merge: true });
+                    showNotification("Dados do contratante salvos.", "success");
+                    contratanteForm.classList.add('hidden');
+                    contratanteDisplay.classList.remove('hidden');
+                } catch(error) {
+                    console.error("Error saving client data:", error);
+                    showNotification("Erro ao salvar dados do contratante.", "error");
+                }
+            });
+            
+            clearCurrentContratanteBtn.addEventListener('click', async () => {
+                if (!userId) { showNotification("Aguarde a autenticação...", "info"); return; }
+                const currentClientRef = doc(db, `artifacts/${appId}/users/${userId}/currentClient/active`);
+                try {
+                    const clientDoc = await getDoc(currentClientRef);
+                    if (clientDoc.exists() && clientDoc.data().nomeCompleto) {
+                        const clientData = clientDoc.data();
+                        const clientHistoryCollection = collection(db, `artifacts/${appId}/public/data/clients`);
+                        await addDoc(clientHistoryCollection, clientData);
+                        showNotification(`Cliente "${clientData.nomeCompleto}" arquivado.`, "info");
+                    }
+                    await deleteDoc(currentClientRef);
+                    showNotification("Campos limpos. Pronto para novo cliente.", "success");
+                } catch (error) {
+                    console.error("Error clearing/archiving client:", error);
+                    showNotification("Erro ao limpar dados do contratante.", "error");
+                }
             });
 
-            cancelEditBtn.addEventListener('click', () => {
-                const storedData = JSON.parse(localStorage.getItem('contratanteData'));
-                loadContratanteData(storedData); // Carrega os dados que estavam salvos
-                contratanteForm.classList.add('hidden');
-                contratanteDisplay.classList.remove('hidden');
-            });
+            // --- CONTRATADO FORM ---
+            const contratadoDisplay = document.getElementById('contratado-display');
+            const contratadoForm = document.getElementById('contratado-form');
+            const editContratadoBtn = document.getElementById('edit-contratado-btn');
+            const saveContratadoBtn = document.getElementById('save-contratado-btn');
+            const cancelEditContratadoBtn = document.getElementById('cancel-edit-contratado-btn');
+            const clearCurrentContratadoBtn = document.getElementById('clear-current-contratado-btn');
 
-            clearCurrentContratanteBtn.addEventListener('click', () => {
-                const currentDataFromInputs = { // Get current data directly from inputs, not localStorage
-                    nomeCompleto: inputNomeCompleto.value, 
-                    nomeFantasia: inputNomeFantasia.value,
-                    cnpj: inputCnpj.value,
-                    endereco: inputEndereco.value, 
-                    telefone: inputTelefone.value,
-                    email: inputEmail.value,
-                    signature: localStorage.getItem('contratanteSignature') || ''
+            editContratadoBtn.addEventListener('click', () => { contratadoDisplay.classList.add('hidden'); contratadoForm.classList.remove('hidden'); });
+            cancelEditContratadoBtn.addEventListener('click', () => { contratadoForm.classList.add('hidden'); contratadoDisplay.classList.remove('hidden'); });
+
+            saveContratadoBtn.addEventListener('click', async () => {
+                if (!userId) { showNotification("Aguarde a autenticação...", "info"); return; }
+                const data = {
+                    nomeCompleto: document.getElementById('input-nome-completo-contratado').value,
+                    cpf: document.getElementById('input-cpf-contratado').value,
+                    endereco: document.getElementById('input-endereco-contratado').value,
+                    telefone: document.getElementById('input-telefone-contratado').value,
+                    email: document.getElementById('input-email-contratado').value,
                 };
-                
-                // Only save to history if nomeCompleto is not empty, implying data was actually entered
-                if (currentDataFromInputs.nomeCompleto.trim() !== '') { 
-                    addClientToHistory(currentDataFromInputs); // Salva os dados atuais no histórico
+                const contratadoRef = doc(db, `artifacts/${appId}/users/${userId}/contratado/details`);
+                try {
+                    await setDoc(contratadoRef, data, { merge: true });
+                    showNotification("Dados do contratado salvos.", "success");
+                    contratadoForm.classList.add('hidden');
+                    contratadoDisplay.classList.remove('hidden');
+                } catch(error) {
+                    console.error("Error saving contractor data:", error);
+                    showNotification("Erro ao salvar dados do contratado.", "error");
                 }
-
-                localStorage.removeItem('contratanteData');
-                localStorage.removeItem('contratanteSignature');
-                
-                // Explicitamente limpa todos os campos de entrada
-                inputNomeCompleto.value = '';
-                inputNomeFantasia.value = '';
-                inputCnpj.value = '';
-                inputEndereco.value = ''; // Explicitamente limpa o campo de endereço
-                inputTelefone.value = '';
-                inputEmail.value = '';
-
-                // Explicitamente limpa todos os campos de exibição
-                displayNomeCompleto.textContent = '';
-                displayNomeFantasia.textContent = '';
-                displayCnpj.textContent = '';
-                displayEndereco.textContent = ''; // Explicitamente limpa o display do endereço
-                displayTelefone.textContent = '';
-                displayEmail.textContent = '';
-                contratanteAssinaturaNome.textContent = '';
-                contratanteAssinaturaCnpj.textContent = 'CNPJ: '; 
-
-                // Limpa o canvas de assinatura e a exibição
-                signatureCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
-                contratanteAssinaturaDisplay.innerHTML = '';
-
-                alert('Dados do Contratante atual limpos e, se preenchidos, salvos no histórico!');
             });
 
-            // Chama loadContratanteData com os dados do localStorage na carga inicial
-            const initialStoredData = JSON.parse(localStorage.getItem('contratanteData'));
-            loadContratanteData(initialStoredData);
-
-            // Lógica de Histórico de Clientes
-            function getClientHistory() {
-                return JSON.parse(localStorage.getItem('clientHistory')) || [];
-            }
-
-            function saveClientHistory(history) {
-                localStorage.setItem('clientHistory', JSON.stringify(history));
-                displayClientHistory(); // Atualiza a exibição do histórico
-            }
-
-            function addClientToHistory(clientData) {
-                let history = getClientHistory();
-                const existingIndex = history.findIndex(client => 
-                    client.nomeCompleto === clientData.nomeCompleto && client.cnpj === clientData.cnpj
-                );
-
-                if (existingIndex > -1) {
-                    history[existingIndex] = clientData; // Atualiza o cliente existente
-                } else {
-                    history.push(clientData); // Adiciona novo cliente
+            clearCurrentContratadoBtn.addEventListener('click', async () => {
+                if (!userId) { showNotification("Aguarde a autenticação...", "info"); return; }
+                const contratadoRef = doc(db, `artifacts/${appId}/users/${userId}/contratado/details`);
+                try {
+                    const contratadoDoc = await getDoc(contratadoRef);
+                    if (contratadoDoc.exists() && contratadoDoc.data().nomeCompleto) {
+                        const contratadoData = contratadoDoc.data();
+                        const contractorHistoryCollection = collection(db, `artifacts/${appId}/public/data/contractors`);
+                        await addDoc(contractorHistoryCollection, contratadoData);
+                        showNotification(`Contratado "${contratadoData.nomeCompleto}" arquivado.`, "info");
+                    }
+                    await deleteDoc(contratadoRef);
+                    showNotification("Dados do contratado limpos.", "success");
+                } catch (error) {
+                    console.error("Error clearing/archiving contractor data:", error);
+                    showNotification("Erro ao limpar/arquivar dados do contratado.", "error");
                 }
-                saveClientHistory(history);
-            }
+            });
+            
+            // --- CHART.JS ---
+            const termCtx = document.getElementById('termChart').getContext('2d');
+            new Chart(termCtx, { type: 'bar', data: { labels: ['Prazo Inicial (Meses)'], datasets: [{ label: 'Duração', data: [6], backgroundColor: ['rgba(20, 184, 166, 0.6)'], borderColor: ['rgba(13, 148, 136, 1)'], borderWidth: 1 }] }, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, max: 7, ticks: { stepSize: 1 } }, y: { grid: { display: false } } } } });
+            
+            // --- PDF GENERATION ---
+            document.getElementById('generate-pdf-btn').addEventListener('click', async () => {
+                 const elementsToHide = [
+                     document.getElementById('edit-contratante-btn'), document.getElementById('clear-current-contratante-btn'), document.getElementById('contratante-form'),
+                     document.getElementById('edit-contratado-btn'), document.getElementById('clear-current-contratado-btn'), document.getElementById('contratado-form'),
+                     document.getElementById('clear-signature-btn'), document.getElementById('save-signature-btn'), document.getElementById('signature-canvas'),
+                     document.getElementById('admin-settings'), ...document.querySelectorAll('.tab-button'), ...document.querySelectorAll('.client-history-buttons') 
+                 ];
 
-            function displayClientHistory() {
-                const history = getClientHistory();
-                clientHistoryDisplay.innerHTML = ''; // Limpa a exibição atual
+                elementsToHide.forEach(el => el && el.classList.add('hidden'));
+                document.getElementById('contratante-display').classList.remove('hidden');
+                document.getElementById('contratado-display').classList.remove('hidden');
+                tabContents.forEach(content => { if (content.id !== 'admin-settings') { content.classList.remove('hidden'); } });
 
-                if (history.length === 0) {
-                    clientHistoryDisplay.innerHTML = '<p class="text-slate-500">Nenhum cliente no histórico.</p>';
-                    return;
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF('p', 'mm', 'a4');
+                const contentToCapture = document.querySelector('.bg-white.rounded-lg.shadow-lg');
+                const pdfWidth = doc.internal.pageSize.getWidth();
+                const margin = 10;
+                
+                try {
+                    showNotification("Gerando PDF... por favor, aguarde.", "info", 5000);
+                    const canvas = await html2canvas(contentToCapture, { scale: 2, useCORS: true });
+                    const imgData = canvas.toDataURL('image/png');
+                    const imgWidth = pdfWidth - (margin * 2);
+                    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                    let heightLeft = imgHeight;
+                    let position = 0;
+
+                    doc.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight);
+                    heightLeft -= doc.internal.pageSize.getHeight();
+
+                    while (heightLeft > 0) {
+                        position = -heightLeft;
+                        doc.addPage();
+                        doc.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight);
+                        heightLeft -= doc.internal.pageSize.getHeight();
+                    }
+                    doc.save('Contrato_Servicos_Trafego_Pago.pdf');
+                } catch (error) {
+                    console.error('Erro ao gerar PDF:', error);
+                    showNotification('Houve um erro ao gerar o PDF.', "error");
+                } finally {
+                    elementsToHide.forEach(el => el && el.classList.remove('hidden'));
+                    document.querySelector('[data-tab="signatures"]').click();
                 }
+            });
 
-                history.forEach((client, index) => {
-                    const clientCard = document.createElement('div');
-                    clientCard.classList.add('border', 'border-slate-200', 'rounded-lg', 'p-4', 'bg-white');
-                    clientCard.innerHTML = `
-                        <h5 class="font-bold text-md mb-2 text-teal-700">Dados do Cliente ${index + 1}</h5>
-                        <p><strong>Nome Completo/Razão Social:</strong> ${client.nomeCompleto || 'N/A'}</p>
-                        <p><strong>Nome Fantasia:</strong> ${client.nomeFantasia || 'N/A'}</p>
+        }); // END DOMContentLoaded
+
+        // --- Firestore Listeners & UI Update Functions ---
+
+        function listenForAdminSettings() {
+            if (!userId) return;
+            const adminSettingsRef = doc(db, `artifacts/${appId}/public/data/settings/admin`);
+            unsubscribeAdminSettings = onSnapshot(adminSettingsRef, (doc) => {
+                const settings = doc.exists() ? doc.data() : getDefaultAdminSettings();
+                applyAdminSettingsToUI(settings);
+            }, console.error);
+        }
+        
+        function listenForCurrentClient() {
+            if (!userId) return;
+            const currentClientRef = doc(db, `artifacts/${appId}/users/${userId}/currentClient/active`);
+            unsubscribeCurrentClient = onSnapshot(currentClientRef, (doc) => {
+                const clientData = doc.exists() ? doc.data() : getDefaultClientData();
+                applyClientDataToUI(clientData);
+                showLoading(false); 
+            }, (error) => {
+                console.error("Error listening to current client:", error);
+                showLoading(false);
+            });
+        }
+        
+        function listenForContratadoData() {
+            if (!userId) return;
+            const contratadoRef = doc(db, `artifacts/${appId}/users/${userId}/contratado/details`);
+            unsubscribeContratado = onSnapshot(contratadoRef, (doc) => {
+                const contratadoData = doc.exists() ? doc.data() : getDefaultContratadoData();
+                applyContratadoDataToUI(contratadoData);
+            }, console.error);
+        }
+
+        function listenForClientHistory() {
+            if (!userId) return;
+            const clientHistoryCollection = collection(db, `artifacts/${appId}/public/data/clients`);
+            unsubscribeClientHistory = onSnapshot(query(clientHistoryCollection), (querySnapshot) => {
+                const history = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                displayClientHistory(history);
+            }, console.error);
+        }
+
+        function listenForContractorHistory() {
+            if (!userId) return;
+            const contractorHistoryCollection = collection(db, `artifacts/${appId}/public/data/contractors`);
+            unsubscribeContractorHistory = onSnapshot(query(contractorHistoryCollection), (querySnapshot) => {
+                const history = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                displayContractorHistory(history);
+            }, console.error);
+        }
+
+        function getDefaultAdminSettings() {
+            return {
+                price1500: 1500.00, price1900: 1900.00, mainObjectiveText: 'N/A',
+                objectiveA: 'N/A', objectiveB: 'N/A',
+                headerContratanteName: 'Contratante', headerContratadoName: 'Contratado',
+            };
+        }
+        
+        function getDefaultClientData() {
+            return { nomeCompleto: '', nomeFantasia: '', cnpj: '', endereco: '', telefone: '', email: '', signature: '' };
+        }
+
+        function getDefaultContratadoData() {
+            // This now returns empty fields to correctly clear the UI.
+            return {
+                nomeCompleto: '', cpf: '',
+                endereco: '', telefone: '', email: ''
+            };
+        }
+
+        function applyAdminSettingsToUI(settings) {
+            document.getElementById('admin-price-1500').value = settings.price1500 || '';
+            document.getElementById('admin-price-1900').value = settings.price1900 || '';
+            document.getElementById('admin-main-objective-text').value = settings.mainObjectiveText || '';
+            document.getElementById('admin-objective-a').value = settings.objectiveA || '';
+            document.getElementById('admin-objective-b').value = settings.objectiveB || '';
+            document.getElementById('admin-header-contratante-name').value = settings.headerContratanteName || '';
+            document.getElementById('admin-header-contratado-name').value = settings.headerContratadoName || '';
+            document.getElementById('overview-main-objective').textContent = settings.mainObjectiveText || 'N/A';
+            document.getElementById('clausula1-1-main').textContent = `1.1. ${settings.mainObjectiveText || ''}`;
+            document.getElementById('clausula1-1-a').textContent = `a) ${settings.objectiveA || ''}`;
+            document.getElementById('clausula1-1-b').textContent = `b) ${settings.objectiveB || ''}`;
+            document.getElementById('header-subtitle').textContent = `${settings.headerContratanteName || 'Contratante'} & ${settings.headerContratadoName || 'Contratado'}`;
+            document.getElementById('display-price-1500').textContent = `R$ ${(settings.price1500 || 0).toFixed(2).replace('.', ',')}`;
+            document.getElementById('display-price-1900').textContent = `R$ ${(settings.price1900 || 0).toFixed(2).replace('.', ',')}`;
+
+            const deadline = new Date('2025-06-30T23:59:59-03:00');
+            const now = new Date();
+            const currentPrice = now <= deadline ? settings.price1500 : settings.price1900;
+            document.getElementById('overview-price').textContent = `R$ ${(currentPrice || 0).toFixed(2).replace('.', ',')}`;
+            document.getElementById('price-1500').classList.toggle('active', now <= deadline);
+            document.getElementById('price-1500').classList.toggle('inactive', now > deadline);
+            document.getElementById('price-1900').classList.toggle('active', now > deadline);
+            document.getElementById('price-1900').classList.toggle('inactive', now <= deadline);
+        }
+
+        function applyClientDataToUI(data) {
+            document.getElementById('display-nome-completo').textContent = data.nomeCompleto || '';
+            document.getElementById('display-nome-fantasia').textContent = data.nomeFantasia || '';
+            document.getElementById('display-cnpj').textContent = data.cnpj || '';
+            document.getElementById('display-endereco').textContent = data.endereco || '';
+            document.getElementById('display-telefone').textContent = data.telefone || '';
+            document.getElementById('display-email').textContent = data.email || '';
+            document.getElementById('input-nome-completo').value = data.nomeCompleto || '';
+            document.getElementById('input-nome-fantasia').value = data.nomeFantasia || '';
+            document.getElementById('input-cnpj').value = data.cnpj || '';
+            document.getElementById('input-endereco').value = data.endereco || '';
+            document.getElementById('input-telefone').value = data.telefone || '';
+            document.getElementById('input-email').value = data.email || '';
+            document.getElementById('contratante-assinatura-nome').textContent = data.nomeCompleto || 'Nome do Contratante';
+            document.getElementById('contratante-assinatura-cnpj').textContent = data.cnpj || 'N/A';
+            
+            const signatureData = data.signature || '';
+            displaySignature(signatureData);
+            if (!signatureData) {
+                 const ctx = document.getElementById('signature-canvas').getContext('2d');
+                 ctx.clearRect(0,0, ctx.canvas.width, ctx.canvas.height);
+            }
+        }
+
+        function applyContratadoDataToUI(data) {
+            document.getElementById('display-nome-completo-contratado').textContent = data.nomeCompleto || '';
+            document.getElementById('display-cpf-contratado').textContent = data.cpf || '';
+            document.getElementById('display-endereco-contratado').textContent = data.endereco || '';
+            document.getElementById('display-telefone-contratado').textContent = data.telefone || '';
+            document.getElementById('display-email-contratado').textContent = data.email || '';
+            document.getElementById('input-nome-completo-contratado').value = data.nomeCompleto || '';
+            document.getElementById('input-cpf-contratado').value = data.cpf || '';
+            document.getElementById('input-endereco-contratado').value = data.endereco || '';
+            document.getElementById('input-telefone-contratado').value = data.telefone || '';
+            document.getElementById('input-email-contratado').value = data.email || '';
+            document.getElementById('contratado-assinatura-nome').textContent = data.nomeCompleto || 'Nome do Contratado';
+            document.getElementById('contratado-assinatura-cpf').textContent = data.cpf || 'N/A';
+        }
+        
+        function displayClientHistory(history) {
+            const clientHistoryDisplay = document.getElementById('client-history-display');
+            clientHistoryDisplay.innerHTML = history.length === 0 ? '<p class="text-slate-500">Nenhum cliente no histórico.</p>' : '';
+            if (history.length === 0) return;
+
+            clientHistoryDisplay.innerHTML = ''; // Clear previous entries
+            history.forEach((client) => {
+                const clientCard = document.createElement('div');
+                clientCard.classList.add('border', 'border-slate-200', 'rounded-lg', 'p-4', 'bg-white');
+                clientCard.innerHTML = `
+                    <h5 class="font-bold text-md mb-2 text-teal-700">${client.nomeFantasia || client.nomeCompleto || 'N/A'}</h5>
+                    <div class="space-y-1 text-sm">
+                        <p><strong>Razão Social:</strong> ${client.nomeCompleto || 'N/A'}</p>
                         <p><strong>CNPJ:</strong> ${client.cnpj || 'N/A'}</p>
                         <p><strong>Endereço:</strong> ${client.endereco || 'N/A'}</p>
                         <p><strong>Telefone:</strong> ${client.telefone || 'N/A'}</p>
                         <p><strong>E-mail:</strong> ${client.email || 'N/A'}</p>
-                        <div class="mt-3 flex space-x-2">
-                            <button class="load-client-btn px-3 py-1 bg-blue-500 text-white rounded-md text-sm hover:bg-blue-600" data-index="${index}">Carregar Dados</button>
-                            <button class="remove-client-btn px-3 py-1 bg-red-500 text-white rounded-md text-sm hover:bg-red-600" data-index="${index}">Remover</button>
-                        </div>
-                    `;
-                    clientHistoryDisplay.appendChild(clientCard);
-                });
-
-                // Adiciona listeners para os botões de carregar e remover
-                document.querySelectorAll('.load-client-btn').forEach(button => {
-                    button.addEventListener('click', (e) => {
-                        const index = parseInt(e.target.dataset.index);
-                        const clientToLoad = getClientHistory()[index];
-                        if (clientToLoad) {
-                            localStorage.setItem('contratanteData', JSON.stringify(clientToLoad));
-                            localStorage.setItem('contratanteSignature', clientToLoad.signature || '');
-                            loadContratanteData(clientToLoad);
-                            alert(`Dados de "${clientToLoad.nomeCompleto}" carregados!`);
-                            document.querySelector('[data-tab="parties"]').click(); // Volta para a aba Partes
-                        }
-                    });
-                });
-
-                document.querySelectorAll('.remove-client-btn').forEach(button => {
-                    button.addEventListener('click', (e) => {
-                        const index = parseInt(e.target.dataset.index);
-                        let history = getClientHistory();
-                        const removedClientName = history[index].nomeCompleto || 'este cliente';
-                        history.splice(index, 1);
-                        saveClientHistory(history);
-                        alert(`Dados de "${removedClientName}" removidos do histórico.`);
-                    });
-                });
-            }
-
-            displayClientHistory(); // Carrega o histórico ao iniciar
-
-            // Lógica de Geração de PDF (ajustada para capturar conteúdo dinâmico do admin)
-            const generatePdfBtn = document.getElementById('generate-pdf-btn');
-
-            generatePdfBtn.addEventListener('click', async () => {
-                const editButtonHidden = editContratanteBtn.classList.contains('hidden');
-                const formHidden = contratanteForm.classList.contains('hidden');
-                const adminSettingsTab = document.getElementById('admin-settings');
-                const adminSettingsHidden = adminSettingsTab.classList.contains('hidden');
-                
-                // Esconder elementos de UI que não devem aparecer no PDF
-                editContratanteBtn.classList.add('hidden');
-                contratanteForm.classList.add('hidden');
-                document.getElementById('clear-signature-btn').classList.add('hidden');
-                document.getElementById('save-signature-btn').classList.add('hidden');
-                signatureCanvas.classList.add('hidden'); 
-                adminSettingsTab.classList.add('hidden'); // Esconde a aba de admin
-
-                contratanteDisplay.classList.remove('hidden');
-
-                // Garante que todas as abas de conteúdo do contrato (exceto admin) estejam visíveis para a captura
-                tabContents.forEach(content => {
-                    if (content.id !== 'admin-settings') {
-                        content.classList.remove('hidden');
-                    }
-                });
-                tabs.forEach(t => t.classList.remove('active')); // Remove ativo das abas
-
-
-                const { jsPDF } = window.jspdf;
-                const doc = new jsPDF('p', 'mm', 'a4'); 
-
-                const content = document.querySelector('.bg-white.rounded-lg.shadow-lg'); 
-
-                const pdfWidth = doc.internal.pageSize.getWidth();
-                const pdfHeight = doc.internal.pageSize.getHeight();
-                const margin = 10; 
-
-                try {
-                    const canvas = await html2canvas(content, { scale: 2 }); 
-                    const imgData = canvas.toDataURL('image/png');
-
-                    const imgWidth = pdfWidth - (2 * margin);
-                    const imgHeight = (canvas.height * imgWidth) / canvas.width;
-                    let heightLeft = imgData ? (canvas.height * imgWidth) / canvas.width : 0; // Check imgData before calculating heightLeft
-
-                    let position = margin;
-
-                    // Only add image if imgData is not empty
-                    if (imgData) {
-                        doc.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight);
-                        heightLeft -= pdfHeight;
-
-                        while (heightLeft >= 0) {
-                            position = heightLeft - imgHeight + margin;
-                            doc.addPage();
-                            doc.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight);
-                            heightLeft -= pdfHeight;
-                        }
-                    } else {
-                        // Add an empty page or a message if there's no content to capture
-                        doc.text("No content to generate PDF.", margin, margin);
-                    }
-
-
-                    doc.save('Contrato_Servicos_Trafego_Pago.pdf');
-                } catch (error) {
-                    console.error('Erro ao gerar PDF:', error);
-                    alert('Houve um erro ao gerar o PDF. Por favor, tente novamente.');
-                } finally {
-                    // Restaura a visibilidade dos elementos conforme o estado anterior
-                    if (editButtonHidden) {
-                        editContratanteBtn.classList.add('hidden');
-                    } else {
-                        editContratanteBtn.classList.remove('hidden');
-                    }
-                    if (formHidden) {
-                        contratanteForm.classList.add('hidden');
-                    } else {
-                        contratanteForm.classList.remove('hidden');
-                    }
-
-                    document.getElementById('clear-signature-btn').classList.remove('hidden');
-                    document.getElementById('save-signature-btn').classList.remove('hidden');
-                    signatureCanvas.classList.remove('hidden'); 
-
-                    // Restaura a aba de admin para o estado anterior
-                    if (adminSettingsHidden) {
-                        adminSettingsTab.classList.add('hidden');
-                    } else {
-                        adminSettingsTab.classList.remove('hidden');
-                    }
-
-                    // Volta para a aba de assinaturas
-                    tabContents.forEach(content => content.classList.add('hidden'));
-                    document.getElementById('signatures').classList.remove('hidden');
-                    document.querySelector('[data-tab="signatures"]').classList.add('active');
-                }
+                    </div>
+                    <div class="mt-3 flex space-x-2 client-history-buttons">
+                        <button class="load-client-btn px-3 py-1 bg-blue-500 text-white rounded-md text-sm hover:bg-blue-600" data-id="${client.id}">Carregar</button>
+                        <button class="remove-client-btn px-3 py-1 bg-red-500 text-white rounded-md text-sm hover:bg-red-600" data-id="${client.id}">Remover</button>
+                    </div>`;
+                clientHistoryDisplay.appendChild(clientCard);
             });
-        });
+            
+            document.querySelectorAll('.load-client-btn').forEach(button => {
+                button.addEventListener('click', async (e) => {
+                    const docId = e.target.dataset.id;
+                    const clientDocRef = doc(db, `artifacts/${appId}/public/data/clients/${docId}`);
+                    try {
+                        const clientDoc = await getDoc(clientDocRef);
+                        if (clientDoc.exists()) {
+                            const clientData = clientDoc.data();
+                            const currentClientRef = doc(db, `artifacts/${appId}/users/${userId}/currentClient/active`);
+                            await setDoc(currentClientRef, clientData);
+                            showNotification(`Dados de "${clientData.nomeCompleto}" carregados!`, "success");
+                            document.querySelector('[data-tab="parties"]').click(); 
+                        }
+                    } catch (error) { console.error("Error loading client from history:", error); showNotification("Erro ao carregar cliente.", "error"); }
+                });
+            });
+
+            document.querySelectorAll('.remove-client-btn').forEach(button => {
+                button.addEventListener('click', async (e) => {
+                    const docId = e.target.dataset.id;
+                    const clientDocRef = doc(db, `artifacts/${appId}/public/data/clients/${docId}`);
+                    try {
+                        await deleteDoc(clientDocRef);
+                        showNotification(`Cliente removido do histórico.`, "success");
+                    } catch (error) { console.error("Error removing client from history:", error); showNotification("Erro ao remover cliente.", "error"); }
+                });
+            });
+        }
+
+        function displayContractorHistory(history) {
+            const contractorHistoryDisplay = document.getElementById('contractor-history-display');
+            contractorHistoryDisplay.innerHTML = history.length === 0 ? '<p class="text-slate-500">Nenhum contratado no histórico.</p>' : '';
+            if (history.length === 0) return;
+
+            contractorHistoryDisplay.innerHTML = ''; // Clear previous entries
+            history.forEach((contractor) => {
+                const contractorCard = document.createElement('div');
+                contractorCard.classList.add('border', 'border-slate-200', 'rounded-lg', 'p-4', 'bg-white', 'space-y-1');
+                contractorCard.innerHTML = `
+                    <h5 class="font-bold text-md mb-2 text-teal-700">${contractor.nomeCompleto || 'N/A'}</h5>
+                    <p class="text-sm"><strong>CPF/CNPJ:</strong> ${contractor.cpf || 'N/A'}</p>
+                    <p class="text-sm"><strong>Endereço:</strong> ${contractor.endereco || 'N/A'}</p>
+                    <p class="text-sm"><strong>Telefone:</strong> ${contractor.telefone || 'N/A'}</p>
+                    <p class="text-sm"><strong>E-mail:</strong> ${contractor.email || 'N/A'}</p>
+                `;
+                contractorHistoryDisplay.appendChild(contractorCard);
+            });
+        }
     </script>
 </body>
 </html>
